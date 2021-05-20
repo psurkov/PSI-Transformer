@@ -66,10 +66,6 @@ class Tree:
         parent_with_next_child = self._get_node_with_next_child()
         assert parent_with_next_child is not None
 
-        # if name == TreeConstants.END_OF_CHILDREN.value:
-        #     assert not self._stats.has_static_children_amount(parent_with_next_child.name)
-        #     self._complete_compressed_last_child(parent_with_next_child)
-
         parent_with_next_child.add_child(node)
         self._nodes_dfs_order.append(node)
         self._complete_compressed_nodes()
@@ -90,19 +86,6 @@ class Tree:
             parent_with_next_child.add_child(node)
             self._nodes_dfs_order.append(node)
             self._complete_compressed_nodes()
-
-    # def _complete_compressed_last_child(self, node: Node) -> None:
-    #     assert not self._stats.has_static_children_amount(node.name)
-    #     last_child_names = self._stats.get_last_child_names(node.name)
-    #     if len(last_child_names) == 1:
-    #         last_child_name = next(iter(last_child_names))
-    #         assert last_child_name != TreeConstants.ARBITRARY_REPR.value
-    #         assert node.children
-    #         if last_child_name != node.children[-1]:
-    #             is_leaf = self._stats.is_non_arbitrary_leaf(last_child_name)
-    #             last_child_node = Node(last_child_name, is_arbitrary=False, is_leaf=is_leaf)
-    #             node.add_child(last_child_node)
-    #             self._nodes_dfs_order.append(node)
 
     @property
     def program(self) -> str:

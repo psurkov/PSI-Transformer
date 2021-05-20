@@ -1,10 +1,7 @@
 from typing import List
 
-from tqdm import tqdm
-
-from psi_datapoint.psi_old.psi_node import PSIConstants
 from psi_datapoint.stateless_transformations.abstract_transformation import Transformation
-from psi_datapoint.tree_structures.node import Node
+from psi_datapoint.tree_structures.node import Node, PSIConstants
 
 
 class WhitespaceNormalizer(Transformation):

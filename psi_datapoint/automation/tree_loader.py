@@ -78,6 +78,13 @@ class TreeLoader:
         self._stats.save_pretrained(self._config.pretrained_path)
 
         trees = [Tree(nodes_list, self._stats) for nodes_list in transformed_nodes_lists]
+
+        print(
+            f"Trees was compressed to "
+            f"{sum(tree.compressed_size / tree.size for tree in trees) / len(trees) * 100}% "
+            f"of its size in average"
+        )
+
         self._tokenizer = TreeTokenizer(
             self._config.tokenizer.vocab_size, self._config.tokenizer.min_frequency, self._config.tokenizer.dropout
         )

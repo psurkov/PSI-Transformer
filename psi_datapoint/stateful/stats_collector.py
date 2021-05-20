@@ -100,7 +100,7 @@ class StatsCollector(Stateful):
         non_arbitrary_leafs = set()
         first_node_names = set()
 
-        for tree in tqdm(trees, desc="Collecting stats from trees (first time)..."):
+        for tree in tqdm(trees, desc="Collecting stats from trees 1/2..."):
             if tree:
                 first_node_names.add(tree[0].name)
             for node in tree:
@@ -125,7 +125,7 @@ class StatsCollector(Stateful):
             self._set_arbitrary_children_amount(tree) for tree in tqdm(trees, desc="Setting end of children child...")
         ]
 
-        for tree in tqdm(trees_with_end_of_children, desc="Collecting stats from trees (second time)..."):
+        for tree in tqdm(trees_with_end_of_children, desc="Collecting stats from trees 2/2..."):
             for node in tree:
                 if not node.is_leaf:
                     if node.name not in children_names:

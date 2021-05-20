@@ -14,10 +14,12 @@ class StatsCollector(Stateful):
     def __init__(self):
         # Set: first nodes' name
         self._first_node_names: Optional[Set[str]] = None
-        # Dict: node name -> sets of occurred child names for each position
-        self._children_names: Optional[Dict[str, List[Set[str]]]] = None
+        # Dict: fixed length node name -> sets of occurred child names for each position
+        self._fixed_children_names: Optional[Dict[str, List[Set[str]]]] = None
+        # Dict: non-fixed length node name -> set of all possible children on all positions
+        self._arbitrary_children_names: Optional[Dict[str, Set[str]]] = None
         # Set with nodes which always has the same number of children
-        self._nodes_with_static_children: Optional[Set[str]] = None
+        self._children_amount: Optional[Dict[str, int]] = None
         # Set: leaf node names with non arbitrary value
         self._non_arbitrary_leafs: Optional[Set[str]] = None
 
@@ -26,15 +28,20 @@ class StatsCollector(Stateful):
     def save_pretrained(self, path: str) -> None:
         path = os.path.join(path, StatsCollector._filename)
         first_node_names = list(self._first_node_names) if self._first_node_names is not None else None
-        children_names = (
+        fixed_children_names = (
             {
                 node_name: [list(children_set) for children_set in children_sets]
-                for node_name, children_sets in self._children_names.items()
+                for node_name, children_sets in self._fixed_children_names.items()
             }
-            if self._children_names is not None
+            if self._fixed_children_names is not None
             else None
         )
-        nodes_with_static_children = list(self._nodes_with_static_children)
+        arbitrary_children_names = (
+            {node_name: list(children_set) for node_name, children_set in self._arbitrary_children_names.items()}
+            if self._arbitrary_children_names is not None
+            else None
+        )
+        children_amount = self._children_amount
         non_arbitrary_leafs = list(self._non_arbitrary_leafs) if self._non_arbitrary_leafs is not None else None
         is_trained = self._is_trained
 
@@ -42,8 +49,9 @@ class StatsCollector(Stateful):
             json.dump(
                 [
                     first_node_names,
-                    children_names,
-                    nodes_with_static_children,
+                    fixed_children_names,
+                    arbitrary_children_names,
+                    children_amount,
                     non_arbitrary_leafs,
                     is_trained,
                 ],
@@ -57,21 +65,27 @@ class StatsCollector(Stateful):
         with open(path) as f:
             [
                 first_node_names,
-                children_names,
-                nodes_with_static_children,
+                fixed_children_names,
+                arbitrary_children_names,
+                children_amount,
                 non_arbitrary_leafs,
                 is_trained,
             ] = json.load(f)
         stats._first_node_names = set(first_node_names) if first_node_names is not None else None
-        stats._children_names = (
+        stats._fixed_children_names = (
             {
                 node_name: [set(children_set) for children_set in children_sets]
-                for node_name, children_sets in children_names.items()
+                for node_name, children_sets in fixed_children_names.items()
             }
-            if children_names is not None
+            if fixed_children_names is not None
             else None
         )
-        stats._nodes_with_static_children = list(nodes_with_static_children)
+        stats._arbitrary_children_names = (
+            {node_name: list(children_set) for node_name, children_set in arbitrary_children_names.items()}
+            if arbitrary_children_names is not None
+            else None
+        )
+        stats._children_amount = children_amount
         stats._non_arbitrary_leafs = set(non_arbitrary_leafs) if non_arbitrary_leafs is not None else None
         stats._is_trained = is_trained
 
@@ -98,14 +112,16 @@ class StatsCollector(Stateful):
                         children_amount[node.name] = set()
                     children_amount[node.name].add(len(node.children))
 
-        self._nodes_with_static_children = set(
-            name for name, children_amount_list in children_amount.items() if len(children_amount_list) == 1
-        )
+        self._children_amount = {
+            name: next(iter(children_amount_list)) if len(children_amount_list) == 1 else -1
+            for name, children_amount_list in children_amount.items()
+        }
         non_arbitrary_leafs.add(TreeConstants.END_OF_CHILDREN.value)
         self._non_arbitrary_leafs = non_arbitrary_leafs
         self._first_node_names = first_node_names
 
-        children_names = {}
+        fixed_children_names = {}
+        arbitrary_children_names = {}
         trees_with_end_of_children = [
             self._set_arbitrary_children_amount(tree) for tree in tqdm(trees, desc="Setting end of children child...")
         ]
@@ -113,19 +129,23 @@ class StatsCollector(Stateful):
         for tree in tqdm(trees_with_end_of_children, desc="Collecting stats from trees 2/2..."):
             for node in tree:
                 if not node.is_leaf:
-                    if node.name not in children_names:
-                        children_names[node.name] = [set() for _ in range(len(node.children))]
+                    if self.has_static_children_amount(node.name):
+                        if node.name not in fixed_children_names:
+                            fixed_children_names[node.name] = [
+                                set() for _ in range(self.get_children_amount(node.name))
+                            ]
 
-                    elif len(children_names[node.name]) != len(node.children):
-                        children_stats_to_add = len(node.children) - len(children_names[node.name])
-                        if children_stats_to_add > 0:
-                            children_names[node.name].extend(set() for _ in range(children_stats_to_add))
+                        for i, child in enumerate(node.children):
+                            child_name = child.name if not child.is_arbitrary else TreeConstants.ARBITRARY_REPR.value
+                            fixed_children_names[node.name][i].add(child_name)
+                    else:
+                        if node.name not in arbitrary_children_names:
+                            arbitrary_children_names[node.name] = set()
+                        for child in node.children:
+                            arbitrary_children_names[node.name].add(child.name)
 
-                    for i, child in enumerate(node.children):
-                        child_name = child.name if not child.is_arbitrary else TreeConstants.ARBITRARY_REPR.value
-                        children_names[node.name][i].add(child_name)
-
-        self._children_names = children_names
+        self._fixed_children_names = fixed_children_names
+        self._arbitrary_children_names = arbitrary_children_names
 
         self._is_trained = True
         return [self._compress(tree) for tree in tqdm(trees_with_end_of_children, desc="Compressing trees...")]
@@ -147,22 +167,29 @@ class StatsCollector(Stateful):
     def _compress(self, nodes: List[Node]) -> List[Node]:
         for node in nodes:
             if not node.is_leaf:
-                possible_children = self.get_children_names(node.name)
-                for child_to_compress, possible_child in zip(node.children, possible_children):
-                    if len(possible_child) == 1:
-                        the_possible_child = next(iter(possible_child))
+                for i, child_to_compress in enumerate(node.children):
+                    possible_children = self.get_children_names(node.name, i)
+                    if len(possible_children) == 1:
+                        the_possible_child = next(iter(possible_children))
                         if the_possible_child != TreeConstants.ARBITRARY_REPR.value:
                             assert child_to_compress.name == the_possible_child
                             child_to_compress.set_visible(False)
         return nodes
 
-    def get_children_names(self, node_name: str) -> List[Set[str]]:
-        assert self._children_names is not None
-        return self._children_names[node_name]
+    def get_children_names(self, node_name: str, child_index: int) -> Set[str]:
+        assert self._fixed_children_names is not None and self._arbitrary_children_names is not None
+        if self.has_static_children_amount(node_name):
+            return self._fixed_children_names[node_name][child_index]
+        else:
+            return self._arbitrary_children_names[node_name]
+
+    def get_children_amount(self, node_name: str) -> int:
+        assert self._children_amount is not None
+        return self._children_amount[node_name]
 
     def has_static_children_amount(self, node_name: str) -> bool:
-        assert self._nodes_with_static_children is not None
-        return node_name in self._nodes_with_static_children
+        assert self._children_amount is not None
+        return self._children_amount[node_name] != -1
 
     def is_non_arbitrary_leaf(self, node_name: str) -> bool:
         assert self._non_arbitrary_leafs is not None

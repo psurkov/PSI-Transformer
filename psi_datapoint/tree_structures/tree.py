@@ -28,8 +28,7 @@ class Tree:
             if node.is_leaf:
                 continue
             elif self._stats.has_static_children_amount(node.name):
-                children_names = self._stats.get_children_names(node.name)
-                if len(children_names) == len(node.children):
+                if self._stats.get_children_amount(node.name) == len(node.children):
                     continue
                 else:
                     return node
@@ -46,13 +45,14 @@ class Tree:
         if parent_with_next_child is None:
             return None
 
-        children_names = self._stats.get_children_names(parent_with_next_child.name)
-        res = children_names[len(parent_with_next_child.children)]
+        children_names = self._stats.get_children_names(
+            parent_with_next_child.name, len(parent_with_next_child.children)
+        )
 
         if self._stats.has_static_children_amount(parent_with_next_child.name):
-            res.add(TreeConstants.ARBITRARY_REPR.value)
+            children_names.add(TreeConstants.ARBITRARY_REPR.value)
         # res.remove(PSIConstants.ERROR_NAME.value)
-        return res
+        return children_names
 
     def add_node(self, name: str, is_arbitrary: bool) -> None:
         is_leaf = is_arbitrary or self._stats.is_non_arbitrary_leaf(name)
@@ -78,9 +78,9 @@ class Tree:
         parent_with_next_child = self._get_node_with_next_child()
         if parent_with_next_child is None:
             return
-        next_children_names = self._stats.get_children_names(parent_with_next_child.name)[
-            len(parent_with_next_child.children)
-        ]
+        next_children_names = self._stats.get_children_names(
+            parent_with_next_child.name, len(parent_with_next_child.children)
+        )
         if len(next_children_names) == 1:
             name = next(iter(next_children_names))
             if name == TreeConstants.ARBITRARY_REPR.value:

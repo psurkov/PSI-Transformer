@@ -19,7 +19,7 @@ class Tree:
 
     @property
     def compressed_size(self) -> int:
-        return sum(1 for node in self._nodes_dfs_order if node.is_visible)
+        return sum(node.is_visible for node in self._nodes_dfs_order)
 
     def _get_node_with_next_child(self) -> Optional[Node]:
         assert self._nodes_dfs_order

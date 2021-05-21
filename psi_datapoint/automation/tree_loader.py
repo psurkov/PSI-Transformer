@@ -1,6 +1,9 @@
+import json
 import os
+from json import JSONDecodeError
 from typing import List, Optional, Tuple
 
+import numpy as np
 import tqdm
 from omegaconf import OmegaConf
 
@@ -61,14 +64,26 @@ class TreeLoader:
         if self._trained:
             assert self._overwrite
 
+        lines_amount = 0
+        line_lengths = []
         with open(self._config.train_jsonl_path, "r") as f:
-            json_strings = f.readlines()
+            for line in tqdm.tqdm(f, desc="Calculating stats of jsonl..."):
+                lines_amount += 1
+                try:
+                    line_lengths.append(len(json.loads(line)["AST"]))
+                except JSONDecodeError:
+                    line_lengths.append(np.iinfo(np.int32).max)
+        line_lengths = np.array(line_lengths, dtype=np.int32)
+        max_length = np.percentile(line_lengths, self._config.max_percentile)
+        is_suits = [length < max_length for length in line_lengths]
 
-        nodes_lists = []
-        for json_string in tqdm.tqdm(json_strings, desc="Parsing trees..."):
-            nodes = Node.load_psi_miner_nodes(json_string)
-            if nodes is not None:
-                nodes_lists.append(nodes)
+        with open(self._config.train_jsonl_path, "r") as f:
+            nodes_lists = []
+            for json_string, is_ok in tqdm.tqdm(zip(f, is_suits), desc="Parsing trees...", total=lines_amount):
+                if is_ok:
+                    nodes = Node.load_psi_miner_nodes(json_string)
+                    if nodes is not None:
+                        nodes_lists.append(nodes)
 
         transformed_nodes_lists = [
             self._apply_transformations(nodes) for nodes in tqdm.tqdm(nodes_lists, desc="Applying transformations...")
@@ -114,6 +129,8 @@ if __name__ == "__main__":
     def main():
         tree_loader = TreeLoader()
         tree_loader.train()
+
+        # Testing stuff
         with open("/Users/Yaroslav.Sokolov/work/psiminer/mock_data/mock_data.train.jsonl") as f:
             [json_string] = f.readlines()
 
@@ -121,8 +138,8 @@ if __name__ == "__main__":
         # print(tree.tree_representation)
         # print(tree.program)
         orig_nodes = tree_loader.inverse_transform(tree)
-        print(orig_nodes[0].tree_representation)
-        print(orig_nodes[0].program)
+        # print(orig_nodes[0].tree_representation)
+        # print(orig_nodes[0].program)
         print(f"Tree size: {tree.size}, compressed_size: {tree.compressed_size}, ids amount: {len(ids)}")
 
         tree_builder = tree_loader.get_tree_builder()
@@ -132,6 +149,6 @@ if __name__ == "__main__":
             tree_builder.add_id(id_)
 
         orig_nodes = tree_loader.inverse_transform(tree_builder.tree)
-        print(orig_nodes[0].program)
+        # print(orig_nodes[0].program)
 
     main()

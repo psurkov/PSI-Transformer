@@ -1,4 +1,5 @@
 import json
+import re
 from enum import Enum
 from json import JSONDecodeError
 from typing import Tuple, Iterable, Optional, List
@@ -9,18 +10,20 @@ class PSIConstants(Enum):
     LEAF_TYPE = "<VALUE>"
     ERROR_NAME = "ERROR_ELEMENT"
     ARBITRARY_VALUES = {
+        "_LITERAL",
         "IDENTIFIER",
-        "LITERAL_EXPRESSION",
         "DOC_COMMENT_DATA",
         "DOC_PARAMETER_REF",
-        "DOC_TAG_VALUE_ELEMENT",
-        "DOC_TAG_VALUE_TOKEN",
+        "DOC_TAG",
         "END_OF_LINE_COMMENT",
         "C_STYLE_COMMENT",
     }
     WHITE_SPACE_NAME = "WHITE_SPACE"
     INDENT_IN_NAMES = {"LBRACE"}
     INDENT_OUT_NAMES = {"RBRACE"}
+
+
+ARBITRARY_NAME_REGEX = re.compile("|".join(PSIConstants.ARBITRARY_VALUES.value))
 
 
 class TreeConstants(Enum):
@@ -111,6 +114,7 @@ class Node:
         try:
             json_dict = json.loads(json_string)
         except JSONDecodeError:
+            print("Skipping tree...")
             return None
         node_dicts, label = json_dict["AST"], json_dict["label"]
 
@@ -135,8 +139,7 @@ class Node:
             is_leaf = False
 
             if node_value != "":
-                base_names = node_name.split("|")
-                is_arbitrary = any(base_name in PSIConstants.ARBITRARY_VALUES.value for base_name in base_names)
+                is_arbitrary = bool(ARBITRARY_NAME_REGEX.search(node_name))
 
                 value_child = Node._load_from_psi_miner_format(
                     node_name=node_value,

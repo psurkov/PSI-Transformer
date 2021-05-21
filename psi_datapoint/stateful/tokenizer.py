@@ -8,6 +8,7 @@ from tokenizers.models import BPE
 from tokenizers.pre_tokenizers import Metaspace
 from tokenizers.processors import TemplateProcessing
 from tokenizers.trainers import BpeTrainer
+import tqdm
 
 from psi_datapoint.stateful.abstract_stateful import Stateful
 from psi_datapoint.tree_structures.node import TreeConstants
@@ -79,7 +80,7 @@ class TreeTokenizer(Stateful):
             (
                 set(
                     TreeTokenizer.non_arbitrary_to_token(node.name, reverse=False)
-                    for tree in trees
+                    for tree in tqdm.tqdm(trees, desc="Collecting nodes tokens for tokenizer...")
                     for node in tree.nodes
                     if not node.is_arbitrary and node.is_visible
                 )

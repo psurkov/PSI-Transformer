@@ -12,12 +12,12 @@ class WhitespaceNormalizer(Transformation):
         for node in nodes:
             if node.name == PSIConstants.WHITE_SPACE_NAME.value:
                 # assert len(node.children) == 1
-                if "\n" in node.children[0].name:
+                if node.children and "\n" in node.children[0].name:
                     node._name = WhitespaceNormalizer.NEW_LINE
-                    node._set_children((Node("\n", is_arbitrary=False, is_leaf=True),))
+                    node._children = (Node("\n", is_arbitrary=False, is_leaf=True),)
                 else:
                     node._name = WhitespaceNormalizer.WHITE_SPACE
-                    node._set_children((Node(" ", is_arbitrary=False, is_leaf=True),))
+                    node._children = (Node(" ", is_arbitrary=False, is_leaf=True),)
         return list(nodes[0].dfs_order)
 
     def inverse_transform(self, nodes: List[Node]) -> List[Node]:

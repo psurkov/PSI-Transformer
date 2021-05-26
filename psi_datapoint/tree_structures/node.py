@@ -110,12 +110,7 @@ class Node:
                 yield from child._show_tree(indent=indent + 1)
 
     @staticmethod
-    def load_psi_miner_nodes(json_string: str) -> Optional[List["Node"]]:
-        try:
-            json_dict = json.loads(json_string)
-        except JSONDecodeError:
-            print("Skipping tree...")
-            return None
+    def load_psi_miner_nodes(json_dict: dict) -> Optional[List["Node"]]:
         node_dicts, label = json_dict["AST"], json_dict["label"]
 
         nodes = [

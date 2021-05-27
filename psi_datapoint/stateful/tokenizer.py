@@ -32,6 +32,7 @@ class TreeTokenizer(Stateful):
         # self._snake_camel_case_pretok = snake_camel_case_pretok
 
         self._bpe_tokenizer = None
+        self._leaf_start_ind = None
         self._arbitrary_start_ind = None
         self._eov_id = None
 
@@ -42,15 +43,24 @@ class TreeTokenizer(Stateful):
         self._bpe_tokenizer.save(os.path.join(path, "bpe_tokenizer.json"))
         with open(os.path.join(path, "tokenizer_stuff.json"), "w") as f:
             json.dump(
-                [self._vocab_size, self._min_frequency, self._dropout, self._arbitrary_start_ind, self._eov_id], f
+                [
+                    self._vocab_size,
+                    self._min_frequency,
+                    self._dropout,
+                    self._leaf_start_ind,
+                    self._arbitrary_start_ind,
+                    self._eov_id,
+                ],
+                f,
             )
 
     @staticmethod
     def from_pretrained(path: str) -> "TreeTokenizer":
         path = os.path.join(path, TreeTokenizer._filename)
         with open(os.path.join(path, "tokenizer_stuff.json")) as f:
-            [vocab_size, min_frequency, dropout, arbitrary_start_ind, eov_id] = json.load(f)
+            [vocab_size, min_frequency, dropout, leaf_start_ind, arbitrary_start_ind, eov_id] = json.load(f)
         tokenizer = TreeTokenizer(vocab_size, min_frequency, dropout)
+        tokenizer._leaf_start_ind = leaf_start_ind
         tokenizer._arbitrary_start_ind = arbitrary_start_ind
         tokenizer._eov_id = eov_id
         tokenizer._bpe_tokenizer = Tokenizer.from_file(os.path.join(path, "bpe_tokenizer.json"))
@@ -59,6 +69,10 @@ class TreeTokenizer(Stateful):
     @staticmethod
     def pretrained_exists(path: str) -> bool:
         return os.path.exists(os.path.join(path, TreeTokenizer._filename))
+
+    @property
+    def leaf_start_index(self) -> int:
+        return self._leaf_start_ind
 
     @property
     def arbitrary_start_index(self) -> int:
@@ -77,16 +91,26 @@ class TreeTokenizer(Stateful):
         return list(range(self.arbitrary_start_index, self._vocab_size))
 
     def train(self, trees: List[Tree]) -> None:
-        special_tokens = list(
+        non_leaf_tokens = list(
             (
                 set(
                     TreeTokenizer.non_arbitrary_to_token(node.name, reverse=False)
-                    for tree in tqdm.tqdm(trees, desc="Collecting nodes tokens for tokenizer...")
+                    for tree in tqdm.tqdm(trees, desc="Collecting nodes tokens for tokenizer 1/2...")
                     for node in tree.nodes
-                    if not node.is_arbitrary and node.is_visible
+                    if not node.is_leaf and node.is_visible
                 )
             )
         )
+        self._leaf_start_ind = len(non_leaf_tokens)
+        non_arbitrary_leaf_tokens = list(
+            set(
+                TreeTokenizer.non_arbitrary_to_token(node.name, reverse=False)
+                for tree in tqdm.tqdm(trees, desc="Collecting nodes tokens for tokenizer 2/2...")
+                for node in tree.nodes
+                if node.is_leaf and not node.is_arbitrary and node.is_visible
+            )
+        )
+        special_tokens = non_leaf_tokens + non_arbitrary_leaf_tokens
         self._arbitrary_start_ind = len(special_tokens)
         special_tokens.extend(("[UNK]", "[PAD]", "[EOV]"))  # arbitrary node's tokens
         self._eov_id = len(special_tokens) - 1

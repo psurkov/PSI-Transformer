@@ -72,14 +72,14 @@ class PSIDatapointFacade:
         )
 
     @property
-    def is_trained(self):
+    def is_trained(self) -> bool:
         return self._trained
 
     @property
-    def tokenizer(self):
+    def tokenizer(self) -> TreeTokenizer:
         return self._tokenizer
 
-    def get_tokenized_sizes(self):
+    def get_tokenized_sizes(self) -> List[int]:
         return self._stats["tree_tokenized_sizes"]
 
     def _apply_transformations(self, nodes: List[Node]) -> List[Node]:
@@ -97,6 +97,9 @@ class PSIDatapointFacade:
     def train(self) -> "PSIDatapointFacade":
         if self._trained:
             assert self._overwrite
+
+        if not os.path.exists(self._config.save_path):
+            os.mkdir(self._config.save_path)
 
         # stats calculation
         lines_amount = 0

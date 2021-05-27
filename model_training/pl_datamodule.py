@@ -15,6 +15,10 @@ class PSIDataModule(pl.LightningDataModule):
         self._config = config
         self._psi_facade: Optional[PSIDatapointFacade] = None
 
+    @property
+    def psi_facade(self) -> Optional[PSIDatapointFacade]:
+        return self._psi_facade
+
     def prepare_data(self):
         psi_facade = PSIDatapointFacade(self._config)
         if not psi_facade.is_trained:

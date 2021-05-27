@@ -6,6 +6,7 @@ from omegaconf import DictConfig
 from transformers import GPT2Config, GPT2LMHeadModel, AdamW, get_linear_schedule_with_warmup
 from transformers_lightning.schedulers import LinearSchedulerWithWarmup
 
+from model_training.pl_datamodule import PSIDataModule
 from model_training.single_token_metrics import accuracy_mrr
 
 
@@ -55,36 +56,80 @@ class PSIBasedModel(pl.LightningModule):
         self.log("train_loss", loss.detach(), on_step=True, on_epoch=True, logger=True)
         return loss
 
-    def _calc_single_token_metrics(self, batch) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def _calc_single_token_metrics(self, batch) -> Dict[str, torch.Tensor]:
         inputs, labels = batch
         [logits] = self.forward(inputs)
-        return accuracy_mrr(logits, labels, ignore_index=self._config.model.labels_pad)
+        datamodule: PSIDataModule = self.trainer.datamodule
+
+        res = dict()
+        res.update(
+            {
+                f"overall_{k}": v
+                for k, v in accuracy_mrr(logits, labels, ignore_index=self._config.model.labels_pad).items()
+            }
+        )
+
+        nonleaf_mask = labels < datamodule.psi_facade.tokenizer.leaf_start_index
+        res.update(
+            {
+                f"nonleaf_{k}": v
+                for k, v in accuracy_mrr(
+                    logits, labels, mask=nonleaf_mask, ignore_index=self._config.model.labels_pad
+                ).items()
+            }
+        )
+
+        staticleaf_mask = torch.logical_and(
+            labels >= datamodule.psi_facade.tokenizer.leaf_start_index,
+            labels < datamodule.psi_facade.tokenizer.arbitrary_start_index,
+        )
+        res.update(
+            {
+                f"staticleaf_{k}": v
+                for k, v in accuracy_mrr(
+                    logits, labels, mask=staticleaf_mask, ignore_index=self._config.model.labels_pad
+                ).items()
+            }
+        )
+
+        bpe_mask = labels >= datamodule.psi_facade.tokenizer.arbitrary_start_index
+        res.update(
+            {
+                f"bpeleaf_{k}": v
+                for k, v in accuracy_mrr(
+                    logits, labels, mask=bpe_mask, ignore_index=self._config.model.labels_pad
+                ).items()
+            }
+        )
+        return res
 
     @staticmethod
     def _aggregate_single_token_metrics(
-        outs: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]], prefix: str
-    ) -> Dict[str, float]:
-        acc1_sums, acc5_sums, mrr5_sums, total_sums = zip(*outs)
-        total = sum(total_sums)
-        acc1 = sum(acc1_sums) / total
-        acc5 = sum(acc5_sums) / total
-        mrr5 = sum(mrr5_sums) / total
-        return {f"{prefix}_acc_top1": acc1, f"{prefix}_acc_top5": acc5, f"{prefix}_MRR_top5": mrr5}
+        outs: List[Dict[str, torch.Tensor]], prefix: str
+    ) -> Dict[str, torch.FloatTensor]:
+        res = dict()
+        for pref in ["overall", "nonleaf", "staticleaf", "bpeleaf"]:
+            total = sum(out[f"{pref}_total"] for out in outs)
+            for k in outs[0].keys():
+                if k.startswith(pref) and not k.endswith("total"):
+                    res[f"{prefix}_{k}"] = sum(out[k] for out in outs) / total
 
-    def validation_step(self, batch, batch_idx) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        return res
+
+    def validation_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
         return self._calc_single_token_metrics(batch)
 
-    def validation_epoch_end(self, outs: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]):
+    def validation_epoch_end(self, outs: List[Dict[str, torch.Tensor]]):
         self.log_dict(
             PSIBasedModel._aggregate_single_token_metrics(outs, "val"),
             on_step=False,
             on_epoch=True,
         )
 
-    def test_step(self, batch, batch_idx) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def test_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
         return self._calc_single_token_metrics(batch)
 
-    def test_epoch_end(self, outs: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]):
+    def test_epoch_end(self, outs: List[Dict[str, torch.Tensor]]):
         self.log_dict(
             PSIBasedModel._aggregate_single_token_metrics(outs, "test"),
             on_step=False,

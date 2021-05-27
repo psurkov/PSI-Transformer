@@ -20,15 +20,15 @@ def train(config: DictConfig) -> None:
     model_checkppint_dir_path = os.path.join(config.save_path, f"model_checkpoints_{datetime.now()}")
     os.mkdir(model_checkppint_dir_path)
     checkpoint_callback = ModelCheckpoint(
-        filename="{epoch}-{step}-{val_MRR_top5:.2f}",
+        filename="{epoch}-{step}-{val_overall_MRR@5:.2f}",
         dirpath=model_checkppint_dir_path,
         save_top_k=config.training.save_top_k,
         save_last=True,
         verbose=True,
-        monitor="val_MRR_top5",
+        monitor="val_overall_MRR@5",
         mode="min",
     )
-    stopping_callback = EarlyStopping(monitor="val_MRR_top5", min_delta=1e-2, patience=5, verbose=True, mode="max")
+    stopping_callback = EarlyStopping(monitor="val_overall_MRR@5", min_delta=1e-2, patience=5, verbose=True, mode="max")
 
     cloud_logger = WandbLogger(project="PSI-Transformer", log_model=True)
 

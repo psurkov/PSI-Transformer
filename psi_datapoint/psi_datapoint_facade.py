@@ -103,17 +103,13 @@ class PSIDatapointFacade:
         # stats calculation
         trees_amount = 0
         nodes_amount_list = []
-        json_dicts = []
         with open(self._config.source_data.train_jsonl, "r") as f:
             for line in tqdm.tqdm(f, desc="Calculating stats of jsonl..."):
                 trees_amount += 1
                 try:
-                    json_dict = json.loads(line)
-                    nodes_amount_list.append(len(json_dict["AST"]))
+                    nodes_amount_list.append(len(json.loads(line)["AST"]))
                 except JSONDecodeError:
-                    json_dict = None
                     nodes_amount_list.append(np.iinfo(np.int32).max)
-                json_dicts.append(json_dict)
         nodes_amount_perc = np.percentile(
             np.array(nodes_amount_list, dtype=np.int32), self._config.psi_pretraining.max_percentile
         )
@@ -129,18 +125,20 @@ class PSIDatapointFacade:
         bar = tqdm.tqdm(total=self._stats["nodes_amount"] - skipped_nodes_count, desc="Parsing trees...")
         skipped_trees_count = (100 - self._config.psi_pretraining.max_percentile) * 0.01 * trees_amount
         nodes_lists = []
-        for json_dict, is_ok in zip(json_dicts, jsonl_mask):
-            if is_ok:
-                nodes = self.json_to_tree(json_dict, to_filter=True)
+        with open(self._config.source_data.train_jsonl, "r") as f:
+            for json_string, is_ok in zip(f, jsonl_mask):
+                if is_ok:
+                    json_dict = json.loads(json_string)
+                    nodes = self.json_to_tree(json_dict, to_filter=True)
 
-                if nodes is None:
-                    skipped_trees_count += 1
-                    continue
+                    if nodes is None:
+                        skipped_trees_count += 1
+                        continue
+                    else:
+                        nodes_lists.append(nodes)
+                    bar.update(len(json_dict["AST"]))
                 else:
-                    nodes_lists.append(nodes)
-                bar.update(len(json_dict["AST"]))
-            else:
-                skipped_trees_count += 1
+                    skipped_trees_count += 1
         bar.close()
         print(f"Skipped {int(skipped_trees_count)} trees!")
         # transforming trees

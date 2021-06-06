@@ -51,7 +51,6 @@ class Tree:
 
         if self._stats.has_static_children_amount(parent_with_next_child.name):
             children_names.add(TreeConstants.ARBITRARY_REPR.value)
-        # res.remove(PSIConstants.ERROR_NAME.value)
         return children_names
 
     def add_node(self, name: str, is_arbitrary: bool) -> None:

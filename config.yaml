@@ -13,10 +13,10 @@ psi_pretraining:
 
   max_percentile: 99
   transformations:
-    - whitespace_normalize
+    - children_amount_normalization
 
   # Turns on debug output after training PSI datapoint
-  show_mock: False
+  show_mock: True
 
 tokenizer:
   vocab_size: 16384

@@ -17,5 +17,5 @@ class Stateful(ABC):
         pass
 
     @abstractmethod
-    def train(self, data) -> "Stateful":
+    def train(self, data):
         pass

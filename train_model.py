@@ -39,7 +39,8 @@ def train(config: DictConfig) -> None:
 
     trainer = pl.Trainer(
         # fast_dev_run=True,
-        # overfit_pct=0.1,
+        limit_val_batches=0.05,
+        limit_train_batches=0.05,
         max_epochs=config.training.epochs,
         gpus=(config.training.n_gpus if config.training.n_gpus else None),
         auto_select_gpus=(True if config.training.n_gpus > 0 else False),

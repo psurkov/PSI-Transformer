@@ -142,7 +142,8 @@ class StatsCollector(Stateful):
                         if node.name not in arbitrary_children_names:
                             arbitrary_children_names[node.name] = set()
                         for child in node.children:
-                            arbitrary_children_names[node.name].add(child.name)
+                            child_name = child.name if not child.is_arbitrary else TreeConstants.ARBITRARY_REPR.value
+                            arbitrary_children_names[node.name].add(child_name)
 
         self._fixed_children_names = fixed_children_names
         self._arbitrary_children_names = arbitrary_children_names
@@ -172,7 +173,10 @@ class StatsCollector(Stateful):
                     if len(possible_children) == 1:
                         the_possible_child = next(iter(possible_children))
                         if the_possible_child != TreeConstants.ARBITRARY_REPR.value:
-                            assert child_to_compress.name == the_possible_child
+                            assert child_to_compress.name == the_possible_child, (
+                                f"{node.name} {i}th child: "
+                                f"has {child_to_compress.name} node but expected {the_possible_child}"
+                            )
                             child_to_compress.set_visible(False)
         return nodes
 

@@ -10,13 +10,13 @@ from omegaconf import OmegaConf, DictConfig
 
 from psi_datapoint.stateful.tokenizer import TreeTokenizer, TreeBuilder
 from psi_datapoint.stateful.stats_collector import StatsCollector
-from psi_datapoint.stateless_transformations.whitespace_normalizer import WhitespaceNormalizer
-from psi_datapoint.tree_structures.node import Node
+from psi_datapoint.stateless_transformations.children_amount_normalization import ChildrenAmountNormalizer
+from psi_datapoint.tree_structures.node import Node, PSIConstants
 from psi_datapoint.tree_structures.tree import Tree
 
 
 TRANSFORMATIONS = [  # Order in the dict must be preserved
-    ("whitespace_normalize", WhitespaceNormalizer),
+    ("children_amount_normalization", ChildrenAmountNormalizer),
 ]
 
 
@@ -101,11 +101,11 @@ class PSIDatapointFacade:
             os.mkdir(self._config.save_path)
 
         # stats calculation
-        lines_amount = 0
+        trees_amount = 0
         nodes_amount_list = []
         with open(self._config.source_data.train_jsonl, "r") as f:
             for line in tqdm.tqdm(f, desc="Calculating stats of jsonl..."):
-                lines_amount += 1
+                trees_amount += 1
                 try:
                     nodes_amount_list.append(len(json.loads(line)["AST"]))
                 except JSONDecodeError:
@@ -117,21 +117,33 @@ class PSIDatapointFacade:
         self._stats["jsonl_mask"] = jsonl_mask
         self._stats["nodes_amount_list"] = nodes_amount_list
         self._stats["nodes_amount_perc"] = nodes_amount_perc
-        self._stats["trees_amount"] = lines_amount
+        self._stats["trees_amount"] = trees_amount
+        self._stats["nodes_amount"] = sum(nodes_amount_list)
+        skipped_nodes_count = sum(amount for is_ok, amount in zip(jsonl_mask, nodes_amount_list) if not is_ok)
 
         # creating nodes
+        bar = tqdm.tqdm(total=self._stats["nodes_amount"] - skipped_nodes_count, desc="Parsing trees...")
+        skipped_trees_count = (100 - self._config.psi_pretraining.max_percentile) * 0.01 * trees_amount
         with open(self._config.source_data.train_jsonl, "r") as f:
             nodes_lists = []
-            for json_string, is_ok in tqdm.tqdm(zip(f, jsonl_mask), desc="Parsing trees...", total=lines_amount):
+            for json_string, is_ok in zip(f, jsonl_mask):
                 if is_ok:
                     try:
                         json_dict = json.loads(json_string)
+                        nodes = self.json_to_tree(json_dict, to_filter=True)
                     except JSONDecodeError:
-                        logging.warning("Skipping tree...")
+                        nodes = None
+
+                    if nodes is None:
+                        skipped_trees_count += 1
                         continue
-                    nodes = Node.load_psi_miner_nodes(json_dict)
-                    if nodes is not None:
+                    else:
                         nodes_lists.append(nodes)
+                    bar.update(len(json_dict["AST"]))
+                else:
+                    skipped_trees_count += 1
+        bar.close()
+        print(f"Skipped {int(skipped_trees_count)} trees!")
         # transforming trees
         transformed_nodes_lists = [
             self._apply_transformations(nodes) for nodes in tqdm.tqdm(nodes_lists, desc="Applying transformations...")
@@ -164,16 +176,24 @@ class PSIDatapointFacade:
 
         return self
 
-    def transform(self, json_string: str, to_filter: bool = False) -> Optional[Tuple[Tree, List[int]]]:
-        assert self._trained
-        try:
-            json_dict = json.loads(json_string)
-        except JSONDecodeError:
+    def json_to_tree(self, json_tree: Union[str, dict], to_filter: bool = False) -> Optional[List[Node]]:
+        if isinstance(json_tree, str):
+            try:
+                json_dict = json.loads(json_tree)
+            except JSONDecodeError:
+                return None
+        else:
+            json_dict = json_tree
+        if any(node["node"] == PSIConstants.ERROR_NAME.value for node in json_dict["AST"]):
             return None
         if to_filter and len(json_dict["AST"]) > self._stats["nodes_amount_perc"]:
             return None
+        return Node.load_psi_miner_nodes(json_dict)
 
-        nodes = Node.load_psi_miner_nodes(json_dict)
+    def transform(self, json_string: str, to_filter: bool = False) -> Optional[Tuple[Tree, List[int]]]:
+        assert self._trained
+        nodes = self.json_to_tree(json_string, to_filter)
+
         transformed_nodes = self._apply_transformations(nodes)
         transformed_nodes = self._stats_collector.transform(transformed_nodes)
         tree = Tree(transformed_nodes, self._stats_collector)

@@ -1,7 +1,5 @@
-import json
 import re
 from enum import Enum
-from json import JSONDecodeError
 from typing import Tuple, Iterable, Optional, List
 
 
@@ -9,21 +7,44 @@ class PSIConstants(Enum):
     EMPTY_VALUE = "<EMPTY>"
     LEAF_TYPE = "<VALUE>"
     ERROR_NAME = "ERROR_ELEMENT"
-    ARBITRARY_VALUES = {
-        "_LITERAL",
-        "IDENTIFIER",
-        "DOC_COMMENT_DATA",
-        "DOC_PARAMETER_REF",
-        "DOC_TAG",
-        "END_OF_LINE_COMMENT",
-        "C_STYLE_COMMENT",
-    }
-    WHITE_SPACE_NAME = "WHITE_SPACE"
-    INDENT_IN_NAMES = {"LBRACE"}
-    INDENT_OUT_NAMES = {"RBRACE"}
 
 
-ARBITRARY_NAME_REGEX = re.compile("|".join(PSIConstants.ARBITRARY_VALUES.value))
+_NODE_NAME_TO_VALUE = {"DOC_COMMENT_START": "/*", "DOC_COMMENT_END": "*/"}
+
+# Whitespaces stuff
+_IS_NEED_NEWLINE = re.compile(
+    "|".join(
+        f"{node}\\w*"
+        for node in (
+            "SEMICOLON",
+            "LBRACE",
+            "RBRACE",
+            "DOC_COMMENT_END",
+            "END_OF_LINE_COMMENT",
+            "C_STYLE_COMMENT",
+        )
+    )
+)
+_TO_OFF_NEWLINE = re.compile("|".join(f"{node}\\w*" for node in ("FOR_STATEMENT",)))
+_START_OFF = re.compile("|".join(f"{node}\\w*" for node in ("LPARENTH",)))
+_END_OFF = re.compile("|".join(f"{node}\\w*" for node in ("RPARENTH",)))
+_INDENT_IN = re.compile("|".join(f"{node}\\w*" for node in ("LBRACE",)))
+_INDENT_OUT = re.compile("|".join(f"{node}\\w*" for node in ("RBRACE",)))
+
+_ARBITRARY_NAME_REGEX = re.compile(
+    "|".join(
+        f"{node}"
+        for node in (
+            "\\w*_LITERAL",
+            "IDENTIFIER",
+            "DOC_COMMENT_DATA",
+            "DOC_PARAMETER_REF",
+            "DOC_TAG_VALUE_TOKEN",
+            "END_OF_LINE_COMMENT",
+            "C_STYLE_COMMENT",
+        )
+    )
+)
 
 
 class TreeConstants(Enum):
@@ -31,7 +52,12 @@ class TreeConstants(Enum):
     ARBITRARY_REPR = "[ARB]"
 
 
+# def _get_node_name(node_name: str, children:):
+
+
 class Node:
+    __slots__ = ("_name", "_is_arbitrary", "_is_leaf", "_is_visible", "_children")
+
     def __init__(
         self,
         name: str,
@@ -88,9 +114,41 @@ class Node:
 
     @property
     def program(self) -> str:
-        return "".join(
-            node.name for node in self.dfs_order if node.is_leaf and node.name != TreeConstants.END_OF_CHILDREN.value
-        )
+        indent = "    "
+        need_newline = False
+        indent_level = 0
+        parenth_cnt = None
+        strings = []
+        for node in self.dfs_order:
+            if _TO_OFF_NEWLINE.search(node.name):
+                parenth_cnt = -1  # -1 means waiting for the first _START_OFF
+            if parenth_cnt == -1 and _START_OFF.search(node.name):
+                parenth_cnt = 1
+            elif parenth_cnt is not None and _START_OFF.search(node.name):
+                parenth_cnt += 1
+            elif parenth_cnt is not None and _END_OFF.search(node.name):
+                parenth_cnt -= 1
+
+            if parenth_cnt is None or parenth_cnt == 0:
+                parenth_cnt = None
+                if _IS_NEED_NEWLINE.search(node.name):
+                    need_newline = True
+                if _INDENT_IN.search(node.name):
+                    indent_level += 1
+                if _INDENT_OUT.search(node.name):
+                    assert f"\n{indent}" in strings[-1]
+                    strings[-1] = strings[-1][:-4]
+                    indent_level -= 1
+
+            if node.is_leaf and node.name != TreeConstants.END_OF_CHILDREN.value:
+                strings.append(node.name)
+                if need_newline:
+                    strings.append(f"\n{indent * indent_level}")
+                    need_newline = False
+                else:
+                    strings.append(" ")
+
+        return "".join(strings)
 
     @property
     def tree_representation(self) -> str:
@@ -113,35 +171,52 @@ class Node:
     def load_psi_miner_nodes(json_dict: dict) -> Optional[List["Node"]]:
         node_dicts, label = json_dict["AST"], json_dict["label"]
 
-        nodes = [
-            Node._load_from_psi_miner_format(node_dict["node"], node_dict["token"], is_leaf="children" not in node_dict)
-            for node_dict in node_dicts
-        ]
-        for node_dict, node in zip(node_dicts, nodes):
+        nodes = []
+        offsets = []
+
+        offset = 0
+        for node_dict in node_dicts:
+            cur_nodes, cur_offset = Node._load_from_psi_miner_format(
+                node_dict["node"],
+                node_dict["token"],
+                is_leaf="children" not in node_dict,
+            )
+            nodes.extend(cur_nodes)
+            offsets.append(offset)
+            offset += cur_offset
+
+        for i, (node_dict, offset) in enumerate(zip(node_dicts, offsets)):
+            node = nodes[i + offset]
             if "children" in node_dict:
-                children = tuple(nodes[i] for i in node_dict["children"])
+                children = tuple(nodes[j + offsets[j]] for j in node_dict["children"])
                 node._set_children(children)
-        return list(nodes[0].dfs_order)
+        return nodes
 
     @staticmethod
     def _load_from_psi_miner_format(
-        node_name: str, node_value: str, is_leaf: bool, arbitrary_value: bool = False
-    ) -> "Node":
+        node_name: str,
+        node_value: str,
+        is_leaf: bool,
+        arbitrary_value: bool = False,
+    ) -> Tuple[Tuple["Node", ...], int]:
         children = None
 
         if node_value != PSIConstants.EMPTY_VALUE.value:
             assert is_leaf
             is_leaf = False
 
-            if node_value != "":
-                is_arbitrary = bool(ARBITRARY_NAME_REGEX.search(node_name))
+            node_value = _NODE_NAME_TO_VALUE.get(node_name, node_value)
 
-                value_child = Node._load_from_psi_miner_format(
+            if node_value != "":
+                is_arbitrary = bool(_ARBITRARY_NAME_REGEX.search(node_name))
+
+                value_child, _ = Node._load_from_psi_miner_format(
                     node_name=node_value,
                     node_value=PSIConstants.EMPTY_VALUE.value,
                     is_leaf=True,
                     arbitrary_value=is_arbitrary,
                 )
+                [value_child] = value_child
                 children = (value_child,)
             else:
                 children = tuple()
@@ -149,4 +224,7 @@ class Node:
         node = Node(node_name, arbitrary_value, is_leaf)
         if children is not None:
             node._set_children(children)
-        return node
+        if children:
+            return (node,) + children, len(children)
+        else:
+            return (node,), 0

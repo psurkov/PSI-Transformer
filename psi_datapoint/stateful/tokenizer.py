@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 from typing import List, Optional
 
@@ -114,7 +113,7 @@ class TreeTokenizer(Stateful):
         self._arbitrary_start_ind = len(special_tokens)
         special_tokens.extend(("[UNK]", "[PAD]", "[EOV]"))  # arbitrary node's tokens
         self._eov_id = len(special_tokens) - 1
-        logging.info(f"There are {len(special_tokens)} special tokens out of {self._vocab_size} vocabulary")
+        print(f"There are {len(special_tokens)} special tokens out of {self._vocab_size} vocabulary")
 
         tokenizer = Tokenizer(BPE(dropout=self._dropout, unk_token="[UNK]", fuse_unk=True))
         tokenizer.pre_tokenizer = Metaspace()
@@ -124,9 +123,10 @@ class TreeTokenizer(Stateful):
         bpe_nodes_iterator = (
             node.name for tree in trees for node in tree.nodes if node.is_arbitrary and node.is_visible
         )
+        print("Training tokenizer...")
         tokenizer.train_from_iterator(bpe_nodes_iterator, trainer)
 
-        logging.info(f"The final vocabulary size is {tokenizer.get_vocab_size()}")
+        print(f"The final vocabulary size is {tokenizer.get_vocab_size()}")
 
         tokenizer.post_processor = TemplateProcessing(
             single="$A [EOV]",

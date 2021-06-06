@@ -1,9 +1,8 @@
 import difflib
 import json
-import logging
 import os
 from json import JSONDecodeError
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import tqdm
@@ -39,12 +38,12 @@ class PSIDatapointFacade:
 
             config = OmegaConf.load(os.path.join(pretrained_path, PSIDatapointFacade._config_filename))
             if self._config != config:
-                logging.warning(f"Loaded config doesn't match current config! Diff:")
+                print(f"WARNING:\nLoaded config doesn't match current config! Diff:")
                 for text in difflib.unified_diff(
                     OmegaConf.to_yaml(self._config).split("\n"), OmegaConf.to_yaml(config).split("\n")
                 ):
                     if text[:3] not in ("+++", "---", "@@ "):
-                        logging.warning(f"    {text}")
+                        print(f"    {text}")
         else:
             self._trained = False
             self._stats_collector = None
@@ -144,7 +143,7 @@ class PSIDatapointFacade:
         trees = [Tree(nodes_list, self._stats_collector) for nodes_list in transformed_nodes_lists]
         tree_compressed_sizes = [tree.compressed_size for tree in trees]
         compress_ratios = [compressed_size / tree.size for tree, compressed_size in zip(trees, tree_compressed_sizes)]
-        logging.info(
+        print(
             f"Trees was compressed to " f"{sum(compress_ratios) / len(trees) * 100}% " f"of its size in average"
         )
         self._stats["tree_compressed_sizes"] = tree_compressed_sizes
@@ -154,7 +153,10 @@ class PSIDatapointFacade:
             self._config.tokenizer.vocab_size, self._config.tokenizer.min_frequency, self._config.tokenizer.dropout
         )
         self._tokenizer.train(trees)
-        tree_tokenized_sizes = [len(self._tokenizer.encode(tree)) for tree in trees]
+        tree_tokenized_sizes = [
+            len(self._tokenizer.encode(tree))
+            for tree in tqdm.tqdm(trees, desc="Collecting stats about tokenized trees...")
+        ]
         self._stats["tree_tokenized_sizes"] = tree_tokenized_sizes
 
         self._trained = True

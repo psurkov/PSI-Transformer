@@ -29,6 +29,7 @@ _NO_COMPRESSION = re.compile(
 class ChildrenAmountNormalizer(Transformation):
     def transform(self, nodes: List[Node]) -> List[Node]:
         for node in nodes:
+            # structure of conditions are ugly, but that's because groups are overlapping (SINGLE and EMPTY)
             if not node.is_leaf:
                 if not _NO_COMPRESSION.search(node.name):
                     is_empty_compression = bool(_EMPTY_CHILDREN_COMPRESSION.search(node.name))

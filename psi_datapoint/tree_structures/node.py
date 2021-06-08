@@ -5,7 +5,6 @@ from typing import Tuple, Iterable, Optional, List
 
 class PSIConstants(Enum):
     EMPTY_VALUE = "<EMPTY>"
-    LEAF_TYPE = "<VALUE>"
     ERROR_NAME = "ERROR_ELEMENT"
 
 

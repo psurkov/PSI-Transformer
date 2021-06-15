@@ -2,7 +2,7 @@ import json
 import os
 from typing import List, Optional
 
-from any_case import to_snake_case
+# from any_case import to_snake_case
 from tokenizers import Tokenizer
 from tokenizers.models import BPE
 from tokenizers.pre_tokenizers import Metaspace
@@ -154,9 +154,9 @@ class TreeTokenizer(Stateful):
     def non_arbitrary_to_token(name: str, reverse: bool) -> str:
         return f"[{name}]" if not reverse else name[1:-1]
 
-    @staticmethod
-    def _parse_any_case(word: str) -> str:
-        return to_snake_case(word, sep_numbers=True).replace("_", " ")
+    # @staticmethod
+    # def _parse_any_case(word: str) -> str:
+    #     return to_snake_case(word, sep_numbers=True).replace("_", " ")
 
 
 class TreeBuilder:

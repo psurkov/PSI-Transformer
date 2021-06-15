@@ -3,7 +3,7 @@ from typing import Optional, Tuple, List, Dict
 import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig
-from transformers import GPT2Config, GPT2LMHeadModel, AdamW, get_linear_schedule_with_warmup
+from transformers import GPT2Config, GPT2LMHeadModel, AdamW
 from transformers_lightning.schedulers import LinearSchedulerWithWarmup
 
 from src.model_training.pl_datamodule import PSIDataModule
@@ -69,35 +69,30 @@ class PSIBasedModel(pl.LightningModule):
             }
         )
 
-        nonleaf_mask = labels < datamodule.psi_facade.tokenizer.leaf_start_index
+        arbitrary_mask, non_arbitrary_leaf_mask, non_leaf_mask = datamodule.psi_facade.tokenizer.classify_ids(labels)
         res.update(
             {
                 f"nonleaf_{k}": v
                 for k, v in accuracy_mrr(
-                    logits, labels, mask=nonleaf_mask, ignore_index=self._config.model.labels_pad
+                    logits, labels, mask=non_leaf_mask, ignore_index=self._config.model.labels_pad
                 ).items()
             }
         )
 
-        staticleaf_mask = torch.logical_and(
-            labels >= datamodule.psi_facade.tokenizer.leaf_start_index,
-            labels < datamodule.psi_facade.tokenizer.arbitrary_start_index,
-        )
         res.update(
             {
                 f"staticleaf_{k}": v
                 for k, v in accuracy_mrr(
-                    logits, labels, mask=staticleaf_mask, ignore_index=self._config.model.labels_pad
+                    logits, labels, mask=non_arbitrary_leaf_mask, ignore_index=self._config.model.labels_pad
                 ).items()
             }
         )
 
-        bpe_mask = labels >= datamodule.psi_facade.tokenizer.arbitrary_start_index
         res.update(
             {
                 f"bpeleaf_{k}": v
                 for k, v in accuracy_mrr(
-                    logits, labels, mask=bpe_mask, ignore_index=self._config.model.labels_pad
+                    logits, labels, mask=arbitrary_mask, ignore_index=self._config.model.labels_pad
                 ).items()
             }
         )

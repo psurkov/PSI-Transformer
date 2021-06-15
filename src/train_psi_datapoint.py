@@ -1,6 +1,7 @@
 import difflib
 
 from omegaconf import DictConfig
+from tqdm import tqdm
 
 from src.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
 from src.utils import run_with_config
@@ -36,6 +37,14 @@ def train(config: DictConfig) -> None:
             for text in difflib.unified_diff(built_nodes[0].program.split("\n"), orig_nodes[0].program.split("\n")):
                 if text[:3] not in ("+++", "---", "@@ "):
                     print(text)
+
+    with open(config.source_data.test_jsonl) as f:
+        for json_string in tqdm(f):
+            tree, ids = tree_loader.transform(json_string)
+            tree_builder = tree_loader.get_tree_builder()
+            for id_ in ids:
+                assert id_ in tree_builder.get_next_possible_ids()
+                tree_builder.add_id(id_)
 
 
 if __name__ == "__main__":

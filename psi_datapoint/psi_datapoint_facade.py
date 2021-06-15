@@ -152,9 +152,7 @@ class PSIDatapointFacade:
         trees = [Tree(nodes_list, self._stats_collector) for nodes_list in transformed_nodes_lists]
         tree_compressed_sizes = [tree.compressed_size for tree in trees]
         compress_ratios = [compressed_size / tree.size for tree, compressed_size in zip(trees, tree_compressed_sizes)]
-        print(
-            f"Trees was compressed to " f"{sum(compress_ratios) / len(trees) * 100}% " f"of its size in average"
-        )
+        print(f"Trees was compressed to " f"{sum(compress_ratios) / len(trees) * 100}% of its size in average")
         self._stats["tree_compressed_sizes"] = tree_compressed_sizes
 
         # training tokenizer

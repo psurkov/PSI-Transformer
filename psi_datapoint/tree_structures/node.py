@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from enum import Enum
 from typing import Tuple, Iterable, Optional, List
 
@@ -51,9 +52,7 @@ class TreeConstants(Enum):
     ARBITRARY_REPR = "[ARB]"
 
 
-# def _get_node_name(node_name: str, children:):
-
-
+@dataclass
 class Node:
     __slots__ = ("_name", "_is_arbitrary", "_is_leaf", "_is_visible", "_children")
 

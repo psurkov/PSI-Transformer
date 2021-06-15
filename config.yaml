@@ -1,12 +1,12 @@
-save_path: pretrained/
+save_path: data/pretrained-out/
 
 source_data:
-#  train_jsonl: /Users/Yaroslav.Sokolov/work/psi_data/java_small_out/java_small_out.train.jsonl
-  train_jsonl: /Users/Yaroslav.Sokolov/work/psi_data/java_small_out/java_small_out.val.jsonl
-#  train_jsonl: /Users/Yaroslav.Sokolov/work/psiminer/mock_data/mock_data.train.jsonl
-  val_jsonl: /Users/Yaroslav.Sokolov/work/psi_data/java_small_out/java_small_out.val.jsonl
-  test_jsonl: /Users/Yaroslav.Sokolov/work/psi_data/java_small_out/java_small_out.test.jsonl
-  mock_jsonl: /Users/Yaroslav.Sokolov/work/psiminer/mock_data/mock_data.train.jsonl
+#  train_jsonl: data/java-small-out/java-small-out.train.jsonl
+  train_jsonl: data/java-small-out/java-small-out.val.jsonl
+#  train_jsonl: data/java-mock-out/mock_data.train.jsonl
+  val_jsonl: data/java-small-out/java-small-out.val.jsonl
+  test_jsonl: data/java-small-out/java-small-out.test.jsonl
+  mock_jsonl: data/mock-out/mock-out.train.jsonl
 
 psi_pretraining:
   overwrite: True
@@ -63,11 +63,3 @@ training:
   # 0 means CPU only
   n_gpus: 0
   seed: 0xB1B7E
-
-hydra:
-  run:
-    dir: .
-  output_subdir: null
-  job_logging: null
-  hydra_logging: null
-

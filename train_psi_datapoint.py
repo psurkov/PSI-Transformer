@@ -1,12 +1,12 @@
+import argparse
 import difflib
 
-import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
+from utils import run_with_config
 
 
-@hydra.main(config_name="config.yaml")
 def train(config: DictConfig) -> None:
     tree_loader = PSIDatapointFacade(config)
     tree_loader.train()
@@ -40,4 +40,4 @@ def train(config: DictConfig) -> None:
 
 
 if __name__ == "__main__":
-    train()
+    run_with_config(train)

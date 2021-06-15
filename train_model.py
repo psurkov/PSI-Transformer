@@ -1,17 +1,18 @@
+import argparse
 import os
 from datetime import datetime
 
 import hydra
 import pytorch_lightning as pl
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
 from model_training.pl_datamodule import PSIDataModule
 from model_training.pl_model import PSIBasedModel
+from utils import run_with_config
 
 
-@hydra.main(config_name="config.yaml")
 def train(config: DictConfig) -> None:
     config.training.local_rank = int(os.environ.get("LOCAL_RANK", 0))
     config.training.world_size = config.training.n_gpus if config.training.n_gpus else 1
@@ -60,4 +61,4 @@ def train(config: DictConfig) -> None:
 
 
 if __name__ == "__main__":
-    train()
+    run_with_config(train)

@@ -1,16 +1,14 @@
-import argparse
 import os
 from datetime import datetime
 
-import hydra
 import pytorch_lightning as pl
-from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
+from omegaconf import DictConfig
+from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
-from model_training.pl_datamodule import PSIDataModule
-from model_training.pl_model import PSIBasedModel
-from utils import run_with_config
+from src.model_training.pl_datamodule import PSIDataModule
+from src.model_training.pl_model import PSIBasedModel
+from src.utils import run_with_config
 
 
 def train(config: DictConfig) -> None:
@@ -18,10 +16,14 @@ def train(config: DictConfig) -> None:
     config.training.world_size = config.training.n_gpus if config.training.n_gpus else 1
 
     lr_logger = LearningRateMonitor()
-    model_checkppint_dir_path = os.path.join(config.save_path, f"model_checkpoints_{datetime.now()}")
-    os.mkdir(model_checkppint_dir_path)
+
+    model_checkpoints_dir = "model_checkpoints"
+    model_checkppint_dir_path = os.path.join(
+        config.save_path, model_checkpoints_dir, datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    )
+    os.makedirs(model_checkppint_dir_path, exist_ok=True)
     checkpoint_callback = ModelCheckpoint(
-        filename="{epoch}-{step}-{val_overall_MRR@5:.2f}",
+        filename="{epoch}-{step}-{val_overall_MRR@5:.3f}",
         dirpath=model_checkppint_dir_path,
         save_top_k=config.training.save_top_k,
         save_last=True,
@@ -29,9 +31,16 @@ def train(config: DictConfig) -> None:
         monitor="val_overall_MRR@5",
         mode="min",
     )
-    stopping_callback = EarlyStopping(monitor="val_overall_MRR@5", min_delta=1e-2, patience=5, verbose=True, mode="max")
+    if config.training.resume_from_checkpoint is not None:
+        checkpoint_path = (
+            config.training.resume_from_checkpoint
+            if os.path.exists(config.training.resume_from_checkpoint)
+            else os.path.join(config.save_path, model_checkpoints_dir, config.training.resume_from_checkpoint)
+        )
+    else:
+        checkpoint_path = None
 
-    cloud_logger = WandbLogger(project="PSI-Transformer", log_model=True)
+    cloud_logger = WandbLogger(project="PSI-Transformer", log_model=True, save_dir=config.save_path)
 
     model = PSIBasedModel(config)
     datamodule = PSIDataModule(config)
@@ -50,10 +59,10 @@ def train(config: DictConfig) -> None:
         amp_level=config.training.fp16_opt_level,
         accumulate_grad_batches=config.training.grad_accumulation_steps,
         gradient_clip_val=config.training.max_grad_norm,
-        callbacks=[lr_logger, checkpoint_callback, stopping_callback],
+        callbacks=[lr_logger, checkpoint_callback],
         checkpoint_callback=True,
         logger=cloud_logger,
-        # resume_from_checkpoint=config.model.name_or_path,
+        resume_from_checkpoint=checkpoint_path,
         val_check_interval=config.training.val_check_interval,
     )
 

@@ -1,7 +1,7 @@
 from typing import List, Optional, Set
 
-from psi_datapoint.stateful.stats_collector import StatsCollector
-from psi_datapoint.tree_structures.node import Node, TreeConstants
+from src.psi_datapoint.stateful.stats_collector import StatsCollector
+from src.psi_datapoint.tree_structures.node import Node, TreeConstants
 
 
 class Tree:

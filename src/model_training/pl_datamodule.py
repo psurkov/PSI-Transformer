@@ -5,8 +5,8 @@ import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
-from model_training.psi_dataset import PSIDataset
-from psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
+from src.model_training.psi_dataset import PSIDataset
+from src.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
 
 
 class PSIDataModule(pl.LightningDataModule):
@@ -43,6 +43,7 @@ class PSIDataModule(pl.LightningDataModule):
             num_workers=self._config.training.num_dataset_workers,
             pin_memory=True,
             collate_fn=self._collate_fn,
+            drop_last=True,
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -53,6 +54,7 @@ class PSIDataModule(pl.LightningDataModule):
             num_workers=self._config.training.num_dataset_workers,
             pin_memory=True,
             collate_fn=self._collate_fn,
+            drop_last=True,
         )
 
     def test_dataloader(self) -> DataLoader:
@@ -63,4 +65,5 @@ class PSIDataModule(pl.LightningDataModule):
             num_workers=self._config.training.num_dataset_workers,
             pin_memory=True,
             collate_fn=self._collate_fn,
+            drop_last=True,
         )

@@ -8,11 +8,11 @@ import numpy as np
 import tqdm
 from omegaconf import OmegaConf, DictConfig
 
-from psi_datapoint.stateful.tokenizer import TreeTokenizer, TreeBuilder
-from psi_datapoint.stateful.stats_collector import StatsCollector
-from psi_datapoint.stateless_transformations.children_amount_normalization import ChildrenAmountNormalizer
-from psi_datapoint.tree_structures.node import Node, PSIConstants
-from psi_datapoint.tree_structures.tree import Tree
+from src.psi_datapoint.stateful.tokenizer import TreeTokenizer, TreeBuilder
+from src.psi_datapoint.stateful.stats_collector import StatsCollector
+from src.psi_datapoint.stateless_transformations.children_amount_normalization import ChildrenAmountNormalizer
+from src.psi_datapoint.tree_structures.node import Node, PSIConstants
+from src.psi_datapoint.tree_structures.tree import Tree
 
 
 TRANSFORMATIONS = [  # Order in the dict must be preserved
@@ -21,7 +21,7 @@ TRANSFORMATIONS = [  # Order in the dict must be preserved
 
 
 class PSIDatapointFacade:
-    _stats_filename = "dataset_stats.json"
+    _stats_filename = "psi/dataset_stats.json"
     _config_filename = "config.yaml"
 
     def __init__(self, config: DictConfig):
@@ -97,8 +97,9 @@ class PSIDatapointFacade:
         if self._trained:
             assert self._overwrite
 
-        if not os.path.exists(self._config.save_path):
-            os.mkdir(self._config.save_path)
+        save_path = os.path.join(self._config.save_path, "psi")
+        if not os.path.exists(save_path):
+            os.makedirs(save_path, exist_ok=True)
 
         # stats calculation
         trees_amount = 0
@@ -188,6 +189,8 @@ class PSIDatapointFacade:
     def transform(self, json_string: str, to_filter: bool = False) -> Optional[Tuple[Tree, List[int]]]:
         assert self._trained
         nodes = self.json_to_tree(json_string, to_filter)
+        if nodes is None:
+            return None
 
         transformed_nodes = self._apply_transformations(nodes)
         transformed_nodes = self._stats_collector.transform(transformed_nodes)

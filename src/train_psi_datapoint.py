@@ -1,10 +1,9 @@
-import argparse
 import difflib
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
-from psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
-from utils import run_with_config
+from src.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
+from src.utils import run_with_config
 
 
 def train(config: DictConfig) -> None:

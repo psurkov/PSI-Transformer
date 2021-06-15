@@ -6,8 +6,8 @@ from omegaconf import DictConfig
 from transformers import GPT2Config, GPT2LMHeadModel, AdamW, get_linear_schedule_with_warmup
 from transformers_lightning.schedulers import LinearSchedulerWithWarmup
 
-from model_training.pl_datamodule import PSIDataModule
-from model_training.single_token_metrics import accuracy_mrr
+from src.model_training.pl_datamodule import PSIDataModule
+from src.model_training.single_token_metrics import accuracy_mrr
 
 
 class PSIBasedModel(pl.LightningModule):

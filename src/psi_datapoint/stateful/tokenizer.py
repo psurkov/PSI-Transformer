@@ -10,13 +10,13 @@ from tokenizers.processors import TemplateProcessing
 from tokenizers.trainers import BpeTrainer
 import tqdm
 
-from psi_datapoint.stateful.abstract_stateful import Stateful
-from psi_datapoint.tree_structures.node import TreeConstants
-from psi_datapoint.tree_structures.tree import Tree
+from src.psi_datapoint.stateful.abstract_stateful import Stateful
+from src.psi_datapoint.tree_structures.node import TreeConstants
+from src.psi_datapoint.tree_structures.tree import Tree
 
 
 class TreeTokenizer(Stateful):
-    _filename = "tree_tokenizer"
+    _filename = "psi/tree_tokenizer"
 
     def __init__(
         self,

@@ -1,4 +1,4 @@
-save_path: data/pretrained-out/
+save_path: out/
 
 source_data:
 #  train_jsonl: data/java-small-out/java-small-out.train.jsonl
@@ -41,6 +41,9 @@ model:
   labels_pad: -100  # HF format
 
 training:
+  # Path to .ckpt file or Nothing (None isn't working)
+  # Path can be in "%datetime%/%name%.ckpt" format or just regular path
+  resume_from_checkpoint:
   # Learning rate for single example (will be scaled according to total batch size)
   base_lr: 0.0000078125
   adam_eps: 1e-8
@@ -57,9 +60,8 @@ training:
 
   fp16: True
   fp16_opt_level: "O1"
-  num_dataset_workers: 1
-  local_rank: ???
-  world_size: ???
-  # 0 means CPU only
-  n_gpus: 0
+  num_dataset_workers: 8
+  local_rank: ???  # means cannot be read before assignment
+  world_size: ???  # means cannot be read before assignment
+  n_gpus: 0  # 0 means CPU only
   seed: 0xB1B7E

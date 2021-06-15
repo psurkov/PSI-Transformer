@@ -4,12 +4,12 @@ from typing import Optional, Dict, List, Set
 
 from tqdm import tqdm
 
-from psi_datapoint.stateful.abstract_stateful import Stateful
-from psi_datapoint.tree_structures.node import Node, TreeConstants
+from src.psi_datapoint.stateful.abstract_stateful import Stateful
+from src.psi_datapoint.tree_structures.node import Node, TreeConstants
 
 
 class StatsCollector(Stateful):
-    _filename = "tree_stats_collector.json"
+    _filename = "psi/tree_stats_collector.json"
 
     def __init__(self):
         # Set: first nodes' name

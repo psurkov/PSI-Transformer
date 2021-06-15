@@ -7,7 +7,7 @@ import torch
 from omegaconf import DictConfig
 from torch.utils.data import IterableDataset, get_worker_info
 
-from psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
+from src.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
 
 
 class PSIDataset(IterableDataset):

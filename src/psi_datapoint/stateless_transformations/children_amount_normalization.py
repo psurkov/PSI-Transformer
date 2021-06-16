@@ -29,18 +29,26 @@ _NO_COMPRESSION = re.compile(
 class ChildrenAmountNormalizer(Transformation):
     def transform(self, nodes: List[Node]) -> List[Node]:
         for node in nodes:
-            # structure of conditions are ugly, but that's because groups are overlapping (SINGLE and EMPTY)
             if not node.is_leaf:
                 if not _NO_COMPRESSION.search(node.name):
                     is_empty_compression = bool(_EMPTY_CHILDREN_COMPRESSION.search(node.name))
                     is_single_compression = bool(_SINGLE_CHILD_COMPRESSION.search(node.name))
                     if is_empty_compression and len(node.children) == 0:
-                        node._name = f"{node.name}|EMPTY"
+                        ChildrenAmountNormalizer._modify_node(node, f"{node.name}|EMPTY")
                     elif is_single_compression and len(node.children) == 1:
-                        node._name = f"{node.name}|{node.children[0].name}"
-                    elif not (is_empty_compression or is_single_compression):
-                        node._name = f"{node.name}|{len(node.children)}"
-        return nodes
+                        ChildrenAmountNormalizer._modify_node(node, f"{node.name}|{node.children[0].name}")
+                    elif is_empty_compression or is_single_compression:
+                        ChildrenAmountNormalizer._modify_node(node, f"{node.name}|ARB")
+                    else:
+                        ChildrenAmountNormalizer._modify_node(node, f"{node.name}|{len(node.children)}")
+        return list(nodes[0].dfs_order)
 
     def inverse_transform(self, nodes: List[Node]) -> List[Node]:
         return nodes
+
+    @staticmethod
+    def _modify_node(node: Node, desired_name: str) -> None:
+        node._name = f"{node.name}|SUPER"
+        fiction_child = Node(desired_name, is_arbitrary=False, is_leaf=False)
+        fiction_child._set_children(node.children)
+        node._set_children((fiction_child,))

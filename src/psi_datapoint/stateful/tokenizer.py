@@ -1,9 +1,8 @@
 import itertools
 import json
 import os
-from typing import List, Optional, Iterable, Union, Tuple
+from typing import List, Optional, Iterable, Union, Tuple, Set
 
-# from any_case import to_snake_case
 import torch
 from tokenizers import Tokenizer
 from tokenizers.models import BPE
@@ -19,18 +18,17 @@ from src.psi_datapoint.tree_structures.tree import Tree
 
 class TreeTokenizer(Stateful):
     _filename = "psi/tree_tokenizer"
+    _special_unk = "[UNK_SPECIAL]"
 
     def __init__(
         self,
         vocab_size: int,
         min_frequency: int,
         dropout: Optional[float],
-        # snake_camel_case_pretok: bool = False,
     ) -> None:
         self._vocab_size = vocab_size
         self._min_frequency = min_frequency
         self._dropout = dropout if dropout is not None and 0.0 < dropout < 1.0 else None
-        # self._snake_camel_case_pretok = snake_camel_case_pretok
 
         self._bpe_tokenizer = None
         self._special_vocab = None
@@ -47,6 +45,7 @@ class TreeTokenizer(Stateful):
         with open(os.path.join(path, "tokenizer_stuff.json"), "w") as f:
             json.dump(
                 [
+                    self._special_vocab,
                     self._vocab_size,
                     self._min_frequency,
                     self._dropout,
@@ -61,8 +60,18 @@ class TreeTokenizer(Stateful):
     def from_pretrained(path: str) -> "TreeTokenizer":
         path = os.path.join(path, TreeTokenizer._filename)
         with open(os.path.join(path, "tokenizer_stuff.json")) as f:
-            [vocab_size, min_frequency, dropout, arbitrary_end_ind, non_leaf_start_ind, eov_id] = json.load(f)
+            [
+                special_vocab,
+                vocab_size,
+                min_frequency,
+                dropout,
+                arbitrary_end_ind,
+                non_leaf_start_ind,
+                eov_id,
+            ] = json.load(f)
         tokenizer = TreeTokenizer(vocab_size, min_frequency, dropout)
+        tokenizer._special_vocab = special_vocab
+        tokenizer._special_vocab_inversed = {v: k for k, v in special_vocab.items()}
         tokenizer._arbitrary_end_ind = arbitrary_end_ind
         tokenizer._non_leaf_start_ind = non_leaf_start_ind
         tokenizer._eov_id = eov_id
@@ -78,18 +87,30 @@ class TreeTokenizer(Stateful):
         return self._eov_id
 
     @property
-    def bpe_tokenizer(self) -> Tokenizer:
-        return self._bpe_tokenizer
-
-    @property
     def arbitrary_ids(self) -> Iterable[int]:
-        return range(self._arbitrary_end_ind)
+        return range(self._arbitrary_end_ind + 1)
 
-    def encode_non_arbitrary(self, token: str) -> int:
-        return self._special_vocab[token]
+    def encode_non_arbitrary_token(self, token: str) -> int:
+        return self._special_vocab[token] if token in self._special_vocab else self._special_vocab[self._special_unk]
 
-    def decode_non_arbitrary_token(self, id_: int) -> str:
-        return self._special_vocab_inversed[id_]
+    def encode_tree(self, tree: Tree) -> List[int]:
+        node_ids = []
+        for node in tree.nodes:
+            if node.is_visible:
+                if node.is_arbitrary:
+                    node_ids.extend(self._bpe_tokenizer.encode(node.name).ids)
+                else:
+                    node_ids.append(self.encode_non_arbitrary_token(node.name))
+        return node_ids
+
+    def decode(self, id_: int) -> str:
+        return (
+            self._special_vocab_inversed[id_] if id_ > self._arbitrary_end_ind else self._bpe_tokenizer.id_to_token(id_)
+        )
+
+    def decode_arbitrary_string(self, ids: List[int]) -> str:
+        assert all(id_ <= self._arbitrary_end_ind for id_ in ids), f""
+        return self._bpe_tokenizer.decode(ids).replace(" ", "").replace("▁", " ")[1:]
 
     def classify_ids(
         self, ids: Union[int, List[int], torch.Tensor]
@@ -150,39 +171,20 @@ class TreeTokenizer(Stateful):
             special_tokens=[("[EOV]", tokenizer.token_to_id("[EOV]"))],
         )
         print(f"The BPE vocabulary size is {tokenizer.get_vocab_size()}")
+        self._vocab_size = tokenizer.get_vocab_size() + special_tokens_amount
         self._bpe_tokenizer = tokenizer
 
         self._special_vocab = {
             token: i
             for i, token in enumerate(
-                itertools.chain(non_arbitrary_leaf_tokens, non_leaf_tokens), start=tokenizer.get_vocab_size()
+                itertools.chain(non_arbitrary_leaf_tokens, non_leaf_tokens), start=tokenizer.get_vocab_size() + 1
             )
         }
-        self._special_vocab_inversed = {
-            i: token
-            for i, token in enumerate(
-                itertools.chain(non_arbitrary_leaf_tokens, non_leaf_tokens), start=tokenizer.get_vocab_size()
-            )
-        }
+        self._special_vocab[self._special_unk] = tokenizer.get_vocab_size()
+        self._special_vocab_inversed = {token: i for i, token in self._special_vocab.items()}
+
         self._arbitrary_end_ind = tokenizer.get_vocab_size() - 1
         self._non_leaf_start_ind = tokenizer.get_vocab_size() + len(non_arbitrary_leaf_tokens) + 1
-
-    def encode(self, tree: Tree) -> List[int]:
-        node_ids = []
-        for node in tree.nodes:
-            if node.is_visible:
-                if node.is_arbitrary:
-                    node_ids.extend(self._bpe_tokenizer.encode(node.name).ids)
-                else:
-                    node_ids.append(self._special_vocab[node.name])
-        return node_ids
-
-    def decode_string(self, ids: List[int]) -> str:
-        return self.bpe_tokenizer.decode(ids).replace(" ", "").replace("▁", " ")[1:]
-
-    # @staticmethod
-    # def _parse_any_case(word: str) -> str:
-    #     return to_snake_case(word, sep_numbers=True).replace("_", " ")
 
 
 class TreeBuilder:
@@ -196,28 +198,30 @@ class TreeBuilder:
     def tree(self) -> Tree:
         return self._tree
 
-    def get_next_possible_ids(self) -> List[int]:
+    def get_next_possible_ids(self) -> Set[int]:
         if self._cur_arbitrary_ids:
-            return list(self._tokenizer.arbitrary_ids)
+            return set(self._tokenizer.arbitrary_ids)
         else:
-            ret = []
             next_suitable_nodes = self._tree.get_next_suitable_nodes()
+            if next_suitable_nodes is None:
+                return set()
+            ret = set()
             for node_name in next_suitable_nodes:
                 if node_name == TreeConstants.ARBITRARY_REPR.value:
-                    ret.extend(self._tokenizer.arbitrary_ids)
+                    ret.update(self._tokenizer.arbitrary_ids)
                 else:
-                    ret.append(self._tokenizer.encode_non_arbitrary(node_name))
+                    ret.add(self._tokenizer.encode_non_arbitrary_token(node_name))
             return ret
 
     def add_id(self, id_: int) -> None:
         is_arbitrary, _, _ = self._tokenizer.classify_ids(id_)
 
         if id_ == self._tokenizer.eov_id:
-            token = self._tokenizer.decode_string(self._cur_arbitrary_ids)
+            token = self._tokenizer.decode_arbitrary_string(self._cur_arbitrary_ids)
             self._cur_arbitrary_ids = []
             self._tree.add_node(name=token, is_arbitrary=True)
         elif is_arbitrary:
             self._cur_arbitrary_ids.append(id_)
         else:
-            token = self._tokenizer.decode_non_arbitrary_token(id_)
+            token = self._tokenizer.decode(id_)
             self._tree.add_node(token, is_arbitrary=False)

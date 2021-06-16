@@ -151,8 +151,12 @@ class StatsCollector(Stateful):
         self._is_trained = True
         return [self._compress(tree) for tree in tqdm(trees_with_end_of_children, desc="Compressing trees...")]
 
-    def transform(self, nodes: List[Node]) -> List[Node]:
-        return self._compress(self._set_arbitrary_children_amount(nodes))
+    def transform(self, nodes: List[Node]) -> Optional[List[Node]]:
+        try:
+            return self._compress(self._set_arbitrary_children_amount(nodes))
+        except (KeyError, AssertionError, IndexError) as e:
+            print(f"Failed to compress tree:\n {e}")
+            return None
 
     def _set_arbitrary_children_amount(self, nodes: List[Node]) -> List[Node]:
         for node in nodes:

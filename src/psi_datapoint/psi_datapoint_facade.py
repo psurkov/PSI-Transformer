@@ -162,7 +162,7 @@ class PSIDatapointFacade:
         )
         self._tokenizer.train(trees)
         tree_tokenized_sizes = [
-            len(self._tokenizer.encode(tree))
+            len(self._tokenizer.encode_tree(tree))
             for tree in tqdm.tqdm(trees, desc="Collecting stats about tokenized trees...")
         ]
         self._stats["tree_tokenized_sizes"] = tree_tokenized_sizes
@@ -182,7 +182,7 @@ class PSIDatapointFacade:
             json_dict = json_tree
         if any(node["node"] == PSIConstants.ERROR_NAME.value for node in json_dict["AST"]):
             return None
-        if to_filter and len(json_dict["AST"]) > self._stats["nodes_amount_perc"]:
+        if to_filter and len(json_dict["AST"]) >= self._stats["nodes_amount_perc"]:
             return None
         return Node.load_psi_miner_nodes(json_dict)
 
@@ -194,8 +194,10 @@ class PSIDatapointFacade:
 
         transformed_nodes = self._apply_transformations(nodes)
         transformed_nodes = self._stats_collector.transform(transformed_nodes)
+        if to_filter and transformed_nodes is None:
+            return None
         tree = Tree(transformed_nodes, self._stats_collector)
-        ids = self._tokenizer.encode(tree)
+        ids = self._tokenizer.encode_tree(tree)
         return tree, ids
 
     def get_tree_builder(self, tree: Optional[Tree] = None) -> TreeBuilder:

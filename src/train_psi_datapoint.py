@@ -40,7 +40,10 @@ def train(config: DictConfig) -> None:
 
     with open(config.source_data.test_jsonl) as f:
         for json_string in tqdm(f):
-            tree, ids = tree_loader.transform(json_string)
+            res = tree_loader.transform(json_string)
+            if res is None:
+                continue
+            tree, ids = res
             tree_builder = tree_loader.get_tree_builder()
             for id_ in ids:
                 assert id_ in tree_builder.get_next_possible_ids()

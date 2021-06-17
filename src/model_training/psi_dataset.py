@@ -88,8 +88,8 @@ class PSIDataset(IterableDataset):
         _, ids = res
         examples = []
         for start in range(0, len(ids), int((1 - self._overlap_slicing) * self._example_len)):
-            inp = torch.tensor(ids[start : start + self._example_len], dtype=torch.long)
             labels = torch.tensor(ids[start + 1 : start + self._example_len + 1], dtype=torch.long)
+            inp = torch.tensor(ids[start : start + labels.size(0)], dtype=torch.long)
             if self._pad_overlapped and start:
                 labels[: int(self._overlap_slicing * self._example_len)] = self._labels_pad
             examples.append((inp, labels))

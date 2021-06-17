@@ -5,6 +5,7 @@ import pytorch_lightning as pl
 from omegaconf import DictConfig
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.plugins import DDPPlugin
 
 from src.model_training.pl_datamodule import PSIDataModule
 from src.model_training.pl_model import PSIBasedModel
@@ -64,6 +65,7 @@ def train(config: DictConfig) -> None:
         logger=cloud_logger,
         resume_from_checkpoint=checkpoint_path,
         val_check_interval=config.training.val_check_interval,
+        plugins=DDPPlugin(find_unused_parameters=False),
     )
 
     trainer.fit(model, datamodule=datamodule)

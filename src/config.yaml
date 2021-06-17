@@ -1,15 +1,15 @@
 save_path: out/
 
 source_data:
-#  train_jsonl: data/java-small-out/java-small-out.train.jsonl
-  train_jsonl: data/java-small-out/java-small-out.val.jsonl
+  train_jsonl: data/java-med-out/java-med-out.train.jsonl
+#  train_jsonl: data/java-small-out/java-small-out.val.jsonl
 #  train_jsonl: data/java-mock-out/mock_data.train.jsonl
-  val_jsonl: data/java-small-out/java-small-out.val.jsonl
-  test_jsonl: data/java-small-out/java-small-out.test.jsonl
+  val_jsonl: data/java-med-out/java-med-out.val.jsonl
+  test_jsonl: data/java-med-out/java-med-out.test.jsonl
   mock_jsonl: data/mock-out/mock-out.train.jsonl
 
 psi_pretraining:
-  overwrite: True
+  overwrite: False
 
   max_percentile: 99
   transformations:
@@ -26,7 +26,7 @@ tokenizer:
 dataset:
   # Number of files which will be loaded and shuffled
   # Larger number => better shuffling & bigger memory consumption and dataset latency
-  shuffle_bucket: 500
+  shuffle_bucket: 5000
   # Examples will be sliced into pieces due to model's capacities
   # Researchers often do slicing with overlapping so model can see some history for every token
   overlap_slicing: 0.1
@@ -35,9 +35,9 @@ dataset:
 
 model:
   type: "gpt-2"
-  hidden_size: 128
-  n_layers: 1
-  context_length: 64
+  hidden_size: 1024
+  n_layers: 18
+  context_length: 384
   labels_pad: -100  # HF format
 
 training:
@@ -55,13 +55,13 @@ training:
   warmup_tokens: 50000000
   weight_decay: 0.1
 
-  val_check_interval: 0.05
-  save_top_k: 10
+  val_check_interval: 0.1
+  save_top_k: 30
 
   fp16: True
   fp16_opt_level: "O1"
   num_dataset_workers: 8
   local_rank: ???  # means cannot be read before assignment
   world_size: ???  # means cannot be read before assignment
-  n_gpus: 0  # 0 means CPU only
+  n_gpus: 8  # 0 means CPU only
   seed: 0xB1B7E

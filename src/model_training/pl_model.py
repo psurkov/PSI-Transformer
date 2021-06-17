@@ -4,10 +4,10 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig
 from transformers import GPT2Config, GPT2LMHeadModel, AdamW
-from transformers_lightning.schedulers import LinearSchedulerWithWarmup
 
 from src.model_training.pl_datamodule import PSIDataModule
 from src.model_training.single_token_metrics import accuracy_mrr
+from src.utils import get_linear_schedule_with_warmup
 
 
 class PSIBasedModel(pl.LightningModule):
@@ -163,6 +163,8 @@ class PSIBasedModel(pl.LightningModule):
         num_steps_epoch = num_batches_epoch // self._config.training.grad_accumulation_steps
         total_steps = num_steps_epoch * self._config.training.epochs
 
-        scheduler = LinearSchedulerWithWarmup(optimizer, num_training_steps=total_steps, num_warmup_steps=warmup_steps)
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer, num_training_steps=total_steps, num_warmup_steps=warmup_steps
+        )
 
         return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "interval": "step", "frequency": 1}}

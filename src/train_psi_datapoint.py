@@ -9,7 +9,7 @@ from src.utils import run_with_config
 
 def train(config: DictConfig) -> None:
     tree_loader = PSIDatapointFacade(config)
-    # tree_loader.train()
+    tree_loader.train()
 
     test_trees(config.source_data.mock_jsonl, tree_loader, verbose=True)
     test_trees(config.source_data.val_jsonl, tree_loader, verbose=False)

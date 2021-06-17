@@ -91,7 +91,7 @@ class TreeTokenizer(Stateful):
         return range(self._arbitrary_end_ind + 1)
 
     def encode_non_arbitrary_token(self, token: str) -> int:
-        return self._special_vocab[token] if token in self._special_vocab else self._special_vocab[self._special_unk]
+        return self._special_vocab.get(token, self._special_vocab[self._special_unk])
 
     def encode_tree(self, tree: Tree) -> List[int]:
         node_ids = []
@@ -122,10 +122,16 @@ class TreeTokenizer(Stateful):
         """Returns 3 bools: is_arbitrary, is_non_arbitrary_leaf, is_internal_node"""
         if isinstance(ids, list):
             zip(*(self.classify_ids(id_) for id_ in ids))
-        else:
+        elif isinstance(ids, int):
             return (
                 ids <= self._arbitrary_end_ind,
                 self._arbitrary_end_ind < ids < self._non_leaf_start_ind,
+                self._non_leaf_start_ind <= ids,
+            )
+        elif isinstance(ids, torch.Tensor):
+            return (
+                ids <= self._arbitrary_end_ind,
+                torch.logical_and(self._arbitrary_end_ind < ids, ids < self._non_leaf_start_ind),
                 self._non_leaf_start_ind <= ids,
             )
 
@@ -148,7 +154,7 @@ class TreeTokenizer(Stateful):
                 if node.is_leaf and not node.is_arbitrary and node.is_visible
             )
         )
-        special_tokens_amount = len(non_leaf_tokens) + len(non_arbitrary_leaf_tokens)
+        special_tokens_amount = len(non_leaf_tokens) + len(non_arbitrary_leaf_tokens) + 1  # special unk
         print(f"There are {special_tokens_amount} special tokens out of {self._vocab_size} vocabulary")
 
         bpe_vocab_size = self._vocab_size - special_tokens_amount

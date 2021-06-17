@@ -40,7 +40,7 @@ class PSIDatapointFacade:
             if self._config != config:
                 print(f"WARNING:\nLoaded config doesn't match current config! Diff:")
                 for text in difflib.unified_diff(
-                    OmegaConf.to_yaml(self._config).split("\n"), OmegaConf.to_yaml(config).split("\n")
+                    OmegaConf.to_yaml(config).split("\n"), OmegaConf.to_yaml(self._config).split("\n")
                 ):
                     if text[:3] not in ("+++", "---", "@@ "):
                         print(f"    {text}")

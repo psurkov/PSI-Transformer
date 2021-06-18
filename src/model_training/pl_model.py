@@ -32,7 +32,9 @@ class PSIBasedModel(pl.LightningModule):
         for holdout in ["train", "val", "test"]:
             for node_type in ["overall", "bpeleaf", "staticleaf", "nonleaf"]:
                 self._metrics[f"{holdout}/{node_type}"] = AccuracyMRR(
-                    ignore_index=self._config.model.labels_pad, top_k=5, shift=True,
+                    ignore_index=self._config.model.labels_pad,
+                    top_k=5,
+                    shift=True,
                 )
 
     def forward(
@@ -57,11 +59,56 @@ class PSIBasedModel(pl.LightningModule):
         else:
             raise ValueError(f"Unsupported model type: {type(self._model)}")
 
-    def training_step(self, batch, batch_idx) -> torch.Tensor:
+    def training_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
         inputs, labels = batch
-        loss, _ = self.forward(inputs, labels)
+        loss, logits = self.forward(inputs, labels)
+        return {"loss": loss, "logits": logits, "labels": labels}
+
+    def training_step_end(self, batch_parts_outputs: Dict[str, torch.Tensor]):
+        losses, logits, labels = (
+            batch_parts_outputs["loss"],
+            batch_parts_outputs["logits"],
+            batch_parts_outputs["labels"],
+        )
+        self.log_dict(
+            self._calc_single_token_metrics(logits.detach(), labels, "train"), on_step=True, prog_bar=False, logger=True
+        )
+        loss = losses.mean()
+
         self.log("train_loss", loss.detach(), on_step=True, prog_bar=True, logger=True)
         return loss
+
+    def validation_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
+        inputs, labels = batch
+        [logits] = self.forward(inputs)
+        return {"logits": logits, "labels": labels}
+
+    def validation_step_end(self, batch_parts_outputs: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        logits, labels = batch_parts_outputs["logits"], batch_parts_outputs["labels"]
+        return self._calc_single_token_metrics(logits, labels, "val")
+
+    def validation_epoch_end(self, outs: List[Dict[str, torch.Tensor]]):
+        self.log_dict(
+            self._aggregate_single_token_metrics("val"),
+            on_step=False,
+            on_epoch=True,
+        )
+
+    def test_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
+        inputs, labels = batch
+        [logits] = self.forward(inputs)
+        return {"logits": logits, "labels": labels}
+
+    def test_step_end(self, batch_parts_outputs: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        logits, labels = batch_parts_outputs["logits"], batch_parts_outputs["labels"]
+        return self._calc_single_token_metrics(logits, labels, "test")
+
+    def test_epoch_end(self, outs: List[Dict[str, torch.Tensor]]):
+        self.log_dict(
+            self._aggregate_single_token_metrics("test"),
+            on_step=False,
+            on_epoch=True,
+        )
 
     def _update_metrics_with_mask(
         self, logits: torch.Tensor, labels: torch.Tensor, holdout: str, node_type: str, mask: Optional[torch.Tensor]
@@ -90,38 +137,6 @@ class PSIBasedModel(pl.LightningModule):
         for node_type in ["overall", "bpeleaf", "staticleaf", "nonleaf"]:
             res.update(self._metrics[f"{holdout}/{node_type}"].compute())
         return res
-
-    def validation_step(self, batch, batch_idx) -> Tuple[torch.Tensor, torch.Tensor]:
-        inputs, labels = batch
-        [logits] = self.forward(inputs)
-        return logits, labels
-
-    def validation_step_end(self, batch_parts_outputs: List[Tuple[torch.Tensor, torch.Tensor]]) -> None:
-        for logits, labels in batch_parts_outputs:
-            self._calc_single_token_metrics(logits, labels, "val")
-
-    def validation_epoch_end(self, outs: List[None]):
-        self.log_dict(
-            self._aggregate_single_token_metrics("val"),
-            on_step=False,
-            on_epoch=True,
-        )
-
-    def test_step(self, batch, batch_idx) -> Tuple[torch.Tensor, torch.Tensor]:
-        inputs, labels = batch
-        [logits] = self.forward(inputs)
-        return logits, labels
-
-    def test_step_end(self, batch_parts_outputs: List[Tuple[torch.Tensor, torch.Tensor]]) -> None:
-        for logits, labels in batch_parts_outputs:
-            self._calc_single_token_metrics(logits, labels, "val")
-
-    def test_epoch_end(self, outs: List[None]):
-        self.log_dict(
-            self._aggregate_single_token_metrics("test"),
-            on_step=False,
-            on_epoch=True,
-        )
 
     def configure_optimizers(self):
         total_batch_size = (

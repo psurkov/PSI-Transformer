@@ -27,7 +27,7 @@ tokenizer:
 dataset:
   # Number of files which will be loaded and shuffled
   # Larger number => better shuffling & bigger memory consumption and dataset latency
-  shuffle_bucket: 500
+  shuffle_bucket: 5000
   # Examples will be sliced into pieces due to model's capacities
   # Researchers often do slicing with overlapping so model can see some history for every token
   overlap_slicing: 0.1

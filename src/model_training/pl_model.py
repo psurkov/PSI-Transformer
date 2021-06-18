@@ -3,6 +3,7 @@ from typing import Optional, Tuple, List, Dict
 import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig
+from torchmetrics import MetricCollection
 from transformers import GPT2Config, GPT2LMHeadModel, AdamW
 
 from src.model_training.pl_datamodule import PSIDataModule
@@ -28,14 +29,15 @@ class PSIBasedModel(pl.LightningModule):
         else:
             raise ValueError(f"Unsupported model type: {self._config.model.type}")
 
-        self._metrics = dict()
+        metrics = dict()
         for holdout in ["train", "val", "test"]:
             for node_type in ["overall", "bpeleaf", "staticleaf", "nonleaf"]:
-                self._metrics[f"{holdout}/{node_type}"] = AccuracyMRR(
+                metrics[f"{holdout}/{node_type}"] = AccuracyMRR(
                     ignore_index=self._config.model.labels_pad,
                     top_k=5,
                     shift=True,
                 )
+        self._metrics = MetricCollection(metrics)
 
     def forward(
         self,

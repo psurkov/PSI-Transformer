@@ -31,7 +31,7 @@ def train(config: DictConfig) -> None:
         save_last=True,
         verbose=True,
         monitor="val_overall_MRR@5",
-        mode="min",
+        mode="max",
     )
     if config.training.resume_from_checkpoint is not None:
         checkpoint_path = (

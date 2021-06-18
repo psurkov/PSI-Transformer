@@ -73,7 +73,7 @@ class PSIBasedModel(pl.LightningModule):
             batch_parts_outputs["labels"],
         )
         self.log_dict(
-            self._calc_single_token_metrics(logits.detach(), labels, "train"), on_step=True, prog_bar=False, logger=True
+            self._calc_single_token_metrics(logits.detach(), labels, "train"), on_step=True, prog_bar=True, logger=True
         )
         loss = losses.mean()
 

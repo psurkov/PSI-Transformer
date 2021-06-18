@@ -1,61 +1,79 @@
 from typing import Optional, Dict
 
 import torch
+from torchmetrics import Metric
 
 
-def accuracy_mrr(
-    scores: torch.Tensor,
-    labels: torch.Tensor,
-    top_k: int = 5,
-    ignore_index: int = -100,
-    mask: Optional[torch.BoolTensor] = None,
-    shift: bool = False,
-) -> Dict[str, torch.Tensor]:
-    """Calculates accuracy@1, accuracy@top_k and MRR@top_k given scores (softmax or logits) and ground truth labels.
+class AccuracyMRR(Metric):
+    def __init__(self, top_k: int, ignore_index: int = -100, shift: bool = False, dist_sync_on_step=False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
 
-    :param scores: logits or softmax scores. Must have > 1 dimensions
-    :param labels: ground truth labels. Must have one dimension more than scores
-    :param top_k: parameter of calculated accracy@top_k and MRR@top_k
-    :param ignore_index: index that should be ignored when computing metrics. If you don't need it, just pass negative
-    :param mask: mask whether token should be ignored when computing metrics
-    :param shift: whether your model works with sequences and inputs == target. It's always true for HuggingFace models
+        self.add_state("correct_acc_1", default=torch.tensor(0, dtype=torch.long), dist_reduce_fx="sum")
+        self.add_state("correct_acc_k", default=torch.tensor(0, dtype=torch.long), dist_reduce_fx="sum")
+        self.add_state("correct_mrr_k", default=torch.tensor(0, dtype=torch.float), dist_reduce_fx="sum")
+        self.add_state("total", default=torch.tensor(0, dtype=torch.long), dist_reduce_fx="sum")
 
-    :return: Dict with:
-        acc@1: sum of hits for accuracy@1
-        acc@k: sum of hits for accuracy@k
-        MRR@k: sum of MRR for all examples
-        total: number of examples
-    """
-    assert scores.ndimension() == labels.ndimension() + 1
-    assert scores.size()[:-1] == labels.size()
-    assert scores.size()[-1] >= top_k
+        self._top_k = top_k
+        self._ignore_index = ignore_index
+        self._shift = shift
 
-    if shift:
-        scores = scores[..., :-1, :]
-        labels = labels[..., 1:]
+    def update(
+        self, scores: torch.Tensor, labels: torch.Tensor, mask: Optional[torch.BoolTensor] = None
+    ) -> Dict[str, torch.Tensor]:
+        """Calculates accuracy@1, accuracy@top_k and MRR@top_k given scores (softmax or logits) and ground truth labels.
 
-    if mask is None:
-        mask = labels != ignore_index
-    else:
-        mask = torch.logical_and(mask, labels != ignore_index)
-    labels = labels[mask]
-    scores = scores[mask]
+        :param scores: logits or softmax scores. Must have > 1 dimensions
+        :param labels: ground truth labels. Must have one dimension more than scores
+        :param mask: mask whether token should be ignored when computing metrics
 
-    # Top predictions
-    _, top_k_predictions = torch.topk(scores, top_k)
-    true_pos = top_k_predictions == labels.unsqueeze(-1).expand_as(top_k_predictions)
+        :return: Dict with:
+            acc@1: sum of hits for accuracy@1
+            acc@k: sum of hits for accuracy@k
+            MRR@k: sum of MRR for all examples
+            total: number of examples
+        """
+        assert scores.ndimension() == labels.ndimension() + 1
+        assert scores.size()[:-1] == labels.size()
+        assert scores.size()[-1] >= self._top_k
 
-    # true_pos shape: (N, top_k)
-    acc_top_1_sum = true_pos[:, :1].sum()
-    acc_top_k_sum = true_pos.sum()
-    mrr_top_k_sum = (
-        true_pos / torch.arange(1, true_pos.size(-1) + 1, dtype=torch.float32, device=true_pos.device)
-    ).sum()
+        if self._shift:
+            scores = scores[..., :-1, :]
+            labels = labels[..., 1:]
 
-    total_size = torch.zeros_like(acc_top_k_sum) + labels.size(0)
-    return {
-        "acc@1": acc_top_1_sum,
-        f"acc@{top_k}": acc_top_k_sum,
-        f"MRR@{top_k}": mrr_top_k_sum,
-        "total": total_size,
-    }
+        if mask is None:
+            mask = labels != self._ignore_index
+        else:
+            mask = torch.logical_and(mask, labels != self._ignore_index)
+        labels = labels[mask]
+        scores = scores[mask]
+
+        # Top predictions
+        _, top_k_predictions = torch.topk(scores, self._top_k)
+        true_pos = top_k_predictions == labels.unsqueeze(-1).expand_as(top_k_predictions)
+
+        # true_pos shape: (N, top_k)
+        acc_top_1_sum = true_pos[:, :1].sum()
+        acc_top_k_sum = true_pos.sum()
+        mrr_top_k_sum = (
+            true_pos / torch.arange(1, true_pos.size(-1) + 1, dtype=torch.float32, device=true_pos.device)
+        ).sum()
+
+        total_size = labels.numel()
+
+        self.correct_acc_1 += acc_top_1_sum
+        self.correct_acc_k += acc_top_k_sum
+        self.correct_mrr_k += mrr_top_k_sum
+        self.total += total_size
+
+        return {
+            "acc@1": acc_top_1_sum,
+            f"acc@{self._top_k}": acc_top_k_sum,
+            f"MRR@{self._top_k}": mrr_top_k_sum,
+        }
+
+    def compute(self):
+        return {
+            "acc@1": self.correct_acc_1 / self.total,
+            f"acc@{self._top_k}": self.correct_acc_k / self.total,
+            f"MRR@{self._top_k}": self.correct_mrr_k / self.total,
+        }

@@ -6,7 +6,7 @@ from omegaconf import DictConfig
 from transformers import GPT2Config, GPT2LMHeadModel, AdamW
 
 from src.model_training.pl_datamodule import PSIDataModule
-from src.model_training.single_token_metrics import accuracy_mrr
+from src.model_training.single_token_metrics import AccuracyMRR
 from src.utils import get_linear_schedule_with_warmup
 
 
@@ -27,6 +27,13 @@ class PSIBasedModel(pl.LightningModule):
             self._model = GPT2LMHeadModel(config=model_config)
         else:
             raise ValueError(f"Unsupported model type: {self._config.model.type}")
+
+        self._metrics = dict()
+        for holdout in ["train", "val", "test"]:
+            for node_type in ["overall", "bpeleaf", "staticleaf", "nonleaf"]:
+                self._metrics[f"{holdout}/{node_type}"] = AccuracyMRR(
+                    ignore_index=self._config.model.labels_pad, top_k=5, shift=True,
+                )
 
     def forward(
         self,
@@ -53,12 +60,8 @@ class PSIBasedModel(pl.LightningModule):
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         inputs, labels = batch
         loss, logits = self.forward(inputs, labels)
-        metrics = PSIBasedModel._aggregate_single_token_metrics(
-            [self._calc_single_token_metrics(logits, labels)], "train"
-        )
-        self.log(
-            "train_overall_MRR@5",
-            metrics["train_overall_MRR@5"],
+        self.log_dict(
+            self._calc_single_token_metrics(logits.detach(), labels, "train"),
             on_step=True,
             on_epoch=False,
             logger=True,
@@ -67,67 +70,43 @@ class PSIBasedModel(pl.LightningModule):
         self.log("train_loss", loss.detach(), on_step=True, prog_bar=True, logger=True)
         return loss
 
-    def _calc_single_token_metrics(self, logits, labels) -> Dict[str, torch.Tensor]:
-        datamodule: PSIDataModule = self.trainer.datamodule
+    def _update_metrics_with_mask(
+        self, logits: torch.Tensor, labels: torch.Tensor, holdout: str, node_type: str, mask: Optional[torch.Tensor]
+    ) -> Dict[str, torch.Tensor]:
+        if mask is not None:
+            labels = labels.clone()
+            labels[mask] = self._config.model.labels_pad
+        return self._metrics[f"{holdout}/{node_type}"](logits, labels)
 
+    def _calc_single_token_metrics(
+        self, logits: torch.Tensor, labels: torch.Tensor, holdout: str
+    ) -> Dict[str, torch.Tensor]:
         res = dict()
-        res.update(
-            {
-                f"overall_{k}": v
-                for k, v in accuracy_mrr(logits, labels, ignore_index=self._config.model.labels_pad).items()
-            }
-        )
+        datamodule: PSIDataModule = self.trainer.datamodule
+        arbitrary_mask, static_leaf_mask, non_leaf_mask = datamodule.psi_facade.tokenizer.classify_ids(labels)
 
-        arbitrary_mask, non_arbitrary_leaf_mask, non_leaf_mask = datamodule.psi_facade.tokenizer.classify_ids(labels)
-        res.update(
-            {
-                f"nonleaf_{k}": v
-                for k, v in accuracy_mrr(
-                    logits, labels, mask=non_leaf_mask, ignore_index=self._config.model.labels_pad
-                ).items()
-            }
-        )
+        res.update(self._update_metrics_with_mask(logits, labels, holdout, "overall", mask=None))
+        res.update(self._update_metrics_with_mask(logits, labels, holdout, "nonleaf", mask=non_leaf_mask))
+        res.update(self._update_metrics_with_mask(logits, labels, holdout, "staticleaf", mask=static_leaf_mask))
+        res.update(self._update_metrics_with_mask(logits, labels, holdout, "bpeleaf", mask=arbitrary_mask))
 
-        res.update(
-            {
-                f"staticleaf_{k}": v
-                for k, v in accuracy_mrr(
-                    logits, labels, mask=non_arbitrary_leaf_mask, ignore_index=self._config.model.labels_pad
-                ).items()
-            }
-        )
-
-        res.update(
-            {
-                f"bpeleaf_{k}": v
-                for k, v in accuracy_mrr(
-                    logits, labels, mask=arbitrary_mask, ignore_index=self._config.model.labels_pad
-                ).items()
-            }
-        )
         return res
 
-    @staticmethod
-    def _aggregate_single_token_metrics(
-        outs: List[Dict[str, torch.Tensor]], prefix: str
-    ) -> Dict[str, torch.FloatTensor]:
+    def _aggregate_single_token_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
         res = dict()
-        for pref in ["overall", "nonleaf", "staticleaf", "bpeleaf"]:
-            total = sum(out[f"{pref}_total"] for out in outs)
-            for k in outs[0].keys():
-                if k.startswith(pref) and not k.endswith("total"):
-                    res[f"{prefix}_{k}"] = sum(out[k] for out in outs) / total
-
+        for node_type in ["overall", "bpeleaf", "staticleaf", "nonleaf"]:
+            res.update(self._metrics[f"{holdout}/{node_type}"].compute())
+            res.update(self._metrics[f"{holdout}/{node_type}"].compute())
         return res
 
     def validation_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
         inputs, labels = batch
         [logits] = self.forward(inputs)
-        return self._calc_single_token_metrics(logits, labels)
+        return self._calc_single_token_metrics(logits, labels, "val")
 
     def validation_epoch_end(self, outs: List[Dict[str, torch.Tensor]]):
         self.log_dict(
-            PSIBasedModel._aggregate_single_token_metrics(outs, "val"),
+            self._aggregate_single_token_metrics("val"),
             on_step=False,
             on_epoch=True,
         )
@@ -135,11 +114,11 @@ class PSIBasedModel(pl.LightningModule):
     def test_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
         inputs, labels = batch
         [logits] = self.forward(inputs)
-        return self._calc_single_token_metrics(logits, labels)
+        return self._calc_single_token_metrics(logits, labels, "test")
 
     def test_epoch_end(self, outs: List[Dict[str, torch.Tensor]]):
         self.log_dict(
-            PSIBasedModel._aggregate_single_token_metrics(outs, "test"),
+            self._aggregate_single_token_metrics("test"),
             on_step=False,
             on_epoch=True,
         )

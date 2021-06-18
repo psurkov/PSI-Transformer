@@ -60,27 +60,29 @@ class PSIDataset(IterableDataset):
         world_size = self._world_size * num_workers
         rank = self._rank * num_workers + worker_id
 
-        yield from self._world_size_batching(rank, world_size)
-
-    def _world_size_batching(self, rank: int, world_size: int) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
-        example_iterator = self._example_iterator()
-        while True:
-            world_batch = list(itertools.islice(example_iterator, world_size))
-            # Very important check that ensures, that every process will get the same amount of data
-            # So every process on DDP will have same amount of batches
-            if len(world_batch) != world_size:
+        desired_length = len(self) // num_workers
+        examples_counter = 0
+        for example in self._example_iterator(rank, world_size):
+            examples_counter += 1
+            yield example
+            if examples_counter >= desired_length:
                 break
-            yield world_batch[rank]
+        while examples_counter < desired_length:
+            examples_counter += 1
+            yield self._empty_batch
 
-    def _example_iterator(self) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
+    def _example_iterator(self, rank: int, world_size: int) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
         bucket = []
         with open(self._data_path, "r") as f:
-            for line in f:
-                bucket.extend(self._prepare_line(line))
-                if not self._need_shuffle or len(bucket) >= self._shuffle_bucket:
-                    shuffle(bucket)
-                    yield from (example for example in bucket)
-                    bucket = []
+            for i, line in enumerate(f):
+                if i % world_size == rank:
+                    bucket.extend(self._prepare_line(line))
+                    if not self._need_shuffle or len(bucket) >= self._shuffle_bucket:
+                        shuffle(bucket)
+                        yield from (example for example in bucket)
+                        bucket = []
+        if self._need_shuffle:
+            shuffle(bucket)
         yield from bucket
 
     def _prepare_line(self, line: str) -> List[Tuple[torch.Tensor, torch.Tensor]]:
@@ -97,3 +99,7 @@ class PSIDataset(IterableDataset):
                 labels[: int(self._overlap_slicing * self._example_len)] = self._labels_pad
             examples.append((inp, labels))
         return examples
+
+    @property
+    def _empty_batch(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        return torch.tensor([0], dtype=torch.long), torch.tensor([self._labels_pad], dtype=torch.long)

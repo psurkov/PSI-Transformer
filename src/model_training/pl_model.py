@@ -53,8 +53,12 @@ class PSIBasedModel(pl.LightningModule):
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         inputs, labels = batch
         loss, logits = self.forward(inputs, labels)
-        self.log_dict(
-            PSIBasedModel._aggregate_single_token_metrics([self._calc_single_token_metrics(logits, labels)], "train"),
+        metrics = PSIBasedModel._aggregate_single_token_metrics(
+            [self._calc_single_token_metrics(logits, labels)], "train"
+        )
+        self.log(
+            "train_overall_MRR@5",
+            metrics["train_overall_MRR@5"],
             on_step=True,
             on_epoch=False,
             logger=True,

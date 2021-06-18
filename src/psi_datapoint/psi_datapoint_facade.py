@@ -158,6 +158,9 @@ class PSIDatapointFacade:
             self._config.tokenizer.vocab_size, self._config.tokenizer.min_frequency, self._config.tokenizer.dropout
         )
         self._tokenizer.train(trees)
+
+        self._trained = True
+
         tree_tokenized_sizes = [
             len(self._tokenizer.encode_tree(tree))
             for tree in tqdm.tqdm(trees, desc="Collecting stats about tokenized trees train...")
@@ -166,7 +169,6 @@ class PSIDatapointFacade:
         self._stats["tree_tokenized_sizes_val"] = self._count_tokenized_sizes(self._config.source_data.val_jsonl)
         self._stats["tree_tokenized_sizes_test"] = self._count_tokenized_sizes(self._config.source_data.test_jsonl)
 
-        self._trained = True
         self._save_pretrained(self._config.save_path)
 
         return self
@@ -182,7 +184,6 @@ class PSIDatapointFacade:
         return sizes
 
     def json_to_tree(self, json_tree: Union[str, dict], to_filter: bool = False) -> Optional[List[Node]]:
-        assert self._trained
         if isinstance(json_tree, str):
             try:
                 json_dict = json.loads(json_tree)

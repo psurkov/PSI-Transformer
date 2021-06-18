@@ -52,13 +52,18 @@ class PSIBasedModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         inputs, labels = batch
-        loss, _ = self.forward(inputs, labels)
-        self.log("train_loss", loss.detach(), on_step=True, on_epoch=True, logger=True)
+        loss, logits = self.forward(inputs, labels)
+        self.log_dict(
+            PSIBasedModel._aggregate_single_token_metrics([self._calc_single_token_metrics(logits, labels)], "train"),
+            on_step=True,
+            on_epoch=False,
+            logger=True,
+            prog_bar=True,
+        )
+        self.log("train_loss", loss.detach(), on_step=True, prog_bar=True, logger=True)
         return loss
 
-    def _calc_single_token_metrics(self, batch) -> Dict[str, torch.Tensor]:
-        inputs, labels = batch
-        [logits] = self.forward(inputs)
+    def _calc_single_token_metrics(self, logits, labels) -> Dict[str, torch.Tensor]:
         datamodule: PSIDataModule = self.trainer.datamodule
 
         res = dict()
@@ -112,7 +117,9 @@ class PSIBasedModel(pl.LightningModule):
         return res
 
     def validation_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
-        return self._calc_single_token_metrics(batch)
+        inputs, labels = batch
+        [logits] = self.forward(inputs)
+        return self._calc_single_token_metrics(logits, labels)
 
     def validation_epoch_end(self, outs: List[Dict[str, torch.Tensor]]):
         self.log_dict(
@@ -122,7 +129,9 @@ class PSIBasedModel(pl.LightningModule):
         )
 
     def test_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
-        return self._calc_single_token_metrics(batch)
+        inputs, labels = batch
+        [logits] = self.forward(inputs)
+        return self._calc_single_token_metrics(logits, labels)
 
     def test_epoch_end(self, outs: List[Dict[str, torch.Tensor]]):
         self.log_dict(

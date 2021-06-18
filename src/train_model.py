@@ -5,12 +5,10 @@ import pytorch_lightning as pl
 from omegaconf import DictConfig
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.plugins import DDPPlugin
 
 from src.model_training.pl_datamodule import PSIDataModule
 from src.model_training.pl_model import PSIBasedModel
 from src.utils import run_with_config
-from torch.distributed.algorithms.ddp_comm_hooks import default_hooks
 
 
 def train(config: DictConfig) -> None:
@@ -66,11 +64,6 @@ def train(config: DictConfig) -> None:
         logger=cloud_logger,
         resume_from_checkpoint=checkpoint_path,
         val_check_interval=config.training.val_check_interval,
-        plugins=DDPPlugin(
-            find_unused_parameters=False, gradient_as_bucket_view=True, ddp_comm_hook=default_hooks.fp16_compress_hook
-        )
-        if config.training.n_gpus > 1
-        else None,
     )
 
     trainer.fit(model, datamodule=datamodule)

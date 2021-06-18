@@ -68,7 +68,9 @@ def train(config: DictConfig) -> None:
         val_check_interval=config.training.val_check_interval,
         plugins=DDPPlugin(
             find_unused_parameters=False, gradient_as_bucket_view=True, ddp_comm_hook=default_hooks.fp16_compress_hook
-        ),
+        )
+        if config.training.n_gpus > 1
+        else None,
     )
 
     trainer.fit(model, datamodule=datamodule)

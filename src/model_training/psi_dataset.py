@@ -22,6 +22,7 @@ class PSIDataset(IterableDataset):
         self._rank = rank
         self._world_size = world_size
 
+        self._holdout = holdout
         if holdout == "train":
             self._data_path = config.source_data.train_jsonl
             self._need_shuffle = True
@@ -46,7 +47,7 @@ class PSIDataset(IterableDataset):
         return (
             sum(
                 int(math.ceil(size / ((1 - self._overlap_slicing) * self._example_len)))
-                for size in self._psi_facade.get_tokenized_sizes()
+                for size in self._psi_facade.get_tokenized_sizes(self._holdout)
             )
             // self._world_size
         )

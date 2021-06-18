@@ -78,8 +78,8 @@ class PSIDatapointFacade:
     def tokenizer(self) -> TreeTokenizer:
         return self._tokenizer
 
-    def get_tokenized_sizes(self) -> List[int]:
-        return self._stats["tree_tokenized_sizes"]
+    def get_tokenized_sizes(self, holdout: str) -> List[int]:
+        return self._stats[f"tree_tokenized_sizes_{holdout}"]
 
     def _apply_transformations(self, nodes: List[Node]) -> List[Node]:
         for transform_name, transform_cls in TRANSFORMATIONS:
@@ -115,15 +115,11 @@ class PSIDatapointFacade:
             np.array(nodes_amount_list, dtype=np.int32), self._config.psi_pretraining.max_percentile
         )
         jsonl_mask = [bool(amount <= nodes_amount_perc) for amount in nodes_amount_list]
-        self._stats["jsonl_mask"] = jsonl_mask
-        self._stats["nodes_amount_list"] = nodes_amount_list
         self._stats["nodes_amount_perc"] = nodes_amount_perc
-        self._stats["trees_amount"] = trees_amount
-        self._stats["nodes_amount"] = sum(nodes_amount_list)
         skipped_nodes_count = sum(amount for is_ok, amount in zip(jsonl_mask, nodes_amount_list) if not is_ok)
 
         # creating nodes
-        bar = tqdm.tqdm(total=self._stats["nodes_amount"] - skipped_nodes_count, desc="Parsing trees...")
+        bar = tqdm.tqdm(total=sum(nodes_amount_list) - skipped_nodes_count, desc="Parsing trees...")
         skipped_trees_count = (100 - self._config.psi_pretraining.max_percentile) * 0.01 * trees_amount
         nodes_lists = []
         with open(self._config.source_data.train_jsonl, "r") as f:
@@ -156,7 +152,6 @@ class PSIDatapointFacade:
             compressed_size / orig_size for orig_size, compressed_size in zip(nodes_amount_list, tree_compressed_sizes)
         ]
         print(f"Trees was compressed to " f"{sum(compress_ratios) / len(trees) * 100}% of its size in average")
-        self._stats["tree_compressed_sizes"] = tree_compressed_sizes
 
         # training tokenizer
         self._tokenizer = TreeTokenizer(
@@ -165,16 +160,29 @@ class PSIDatapointFacade:
         self._tokenizer.train(trees)
         tree_tokenized_sizes = [
             len(self._tokenizer.encode_tree(tree))
-            for tree in tqdm.tqdm(trees, desc="Collecting stats about tokenized trees...")
+            for tree in tqdm.tqdm(trees, desc="Collecting stats about tokenized trees train...")
         ]
-        self._stats["tree_tokenized_sizes"] = tree_tokenized_sizes
+        self._stats["tree_tokenized_sizes_train"] = tree_tokenized_sizes
+        self._stats["tree_tokenized_sizes_val"] = self._count_tokenized_sizes(self._config.source_data.val_jsonl)
+        self._stats["tree_tokenized_sizes_test"] = self._count_tokenized_sizes(self._config.source_data.test_jsonl)
 
         self._trained = True
         self._save_pretrained(self._config.save_path)
 
         return self
 
+    def _count_tokenized_sizes(self, path: str) -> List[int]:
+        sizes = []
+        with open(path) as f:
+            for json_string in tqdm.tqdm(f, desc=f"Collecting stats about tokenized trees val/test..."):
+                res = self.transform(json_string, to_filter=True)
+                if res is not None:
+                    _, ids = res
+                    sizes.append(len(ids))
+        return sizes
+
     def json_to_tree(self, json_tree: Union[str, dict], to_filter: bool = False) -> Optional[List[Node]]:
+        assert self._trained
         if isinstance(json_tree, str):
             try:
                 json_dict = json.loads(json_tree)

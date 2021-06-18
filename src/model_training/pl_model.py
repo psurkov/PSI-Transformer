@@ -59,14 +59,7 @@ class PSIBasedModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
         inputs, labels = batch
-        loss, logits = self.forward(inputs, labels)
-        self.log_dict(
-            self._calc_single_token_metrics(logits.detach(), labels, "train"),
-            on_step=True,
-            on_epoch=False,
-            logger=True,
-            prog_bar=True,
-        )
+        loss, _ = self.forward(inputs, labels)
         self.log("train_loss", loss.detach(), on_step=True, prog_bar=True, logger=True)
         return loss
 
@@ -96,27 +89,34 @@ class PSIBasedModel(pl.LightningModule):
         res = dict()
         for node_type in ["overall", "bpeleaf", "staticleaf", "nonleaf"]:
             res.update(self._metrics[f"{holdout}/{node_type}"].compute())
-            res.update(self._metrics[f"{holdout}/{node_type}"].compute())
         return res
 
-    def validation_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
+    def validation_step(self, batch, batch_idx) -> Tuple[torch.Tensor, torch.Tensor]:
         inputs, labels = batch
         [logits] = self.forward(inputs)
-        return self._calc_single_token_metrics(logits, labels, "val")
+        return logits, labels
 
-    def validation_epoch_end(self, outs: List[Dict[str, torch.Tensor]]):
+    def validation_step_end(self, batch_parts_outputs: List[Tuple[torch.Tensor, torch.Tensor]]) -> None:
+        for logits, labels in batch_parts_outputs:
+            self._calc_single_token_metrics(logits, labels, "val")
+
+    def validation_epoch_end(self, outs: List[None]):
         self.log_dict(
             self._aggregate_single_token_metrics("val"),
             on_step=False,
             on_epoch=True,
         )
 
-    def test_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
+    def test_step(self, batch, batch_idx) -> Tuple[torch.Tensor, torch.Tensor]:
         inputs, labels = batch
         [logits] = self.forward(inputs)
-        return self._calc_single_token_metrics(logits, labels, "test")
+        return logits, labels
 
-    def test_epoch_end(self, outs: List[Dict[str, torch.Tensor]]):
+    def test_step_end(self, batch_parts_outputs: List[Tuple[torch.Tensor, torch.Tensor]]) -> None:
+        for logits, labels in batch_parts_outputs:
+            self._calc_single_token_metrics(logits, labels, "val")
+
+    def test_epoch_end(self, outs: List[None]):
         self.log_dict(
             self._aggregate_single_token_metrics("test"),
             on_step=False,

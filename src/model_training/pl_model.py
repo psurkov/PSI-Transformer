@@ -118,7 +118,7 @@ class PSIBasedModel(pl.LightningModule):
         if mask is not None:
             labels = labels.clone()
             labels[mask] = self._config.model.labels_pad
-        return self._metrics[f"{holdout}/{node_type}"](logits, labels)
+        return {f"{holdout}/{node_type}_{k}": v for k, v in self._metrics[f"{holdout}/{node_type}"](logits, labels).items()}
 
     def _calc_single_token_metrics(
         self, logits: torch.Tensor, labels: torch.Tensor, holdout: str

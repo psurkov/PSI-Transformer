@@ -137,7 +137,7 @@ class PSIBasedModel(pl.LightningModule):
     def _aggregate_single_token_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
         res = dict()
         for node_type in ["overall", "bpeleaf", "staticleaf", "nonleaf"]:
-            res.update(self._metrics[f"{holdout}/{node_type}"].compute())
+            res.update({f"{holdout}/{node_type}_{k}": v for k, v in self._metrics[f"{holdout}/{node_type}"].compute().items()})
         return res
 
     def configure_optimizers(self):

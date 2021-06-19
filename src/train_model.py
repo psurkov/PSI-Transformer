@@ -28,7 +28,7 @@ def train(config: DictConfig) -> None:
         save_top_k=config.training.save_top_k,
         save_last=True,
         verbose=True,
-        monitor="val_overall_MRR@5",
+        monitor="val/overall_MRR@5",
         mode="max",
     )
     if config.training.resume_from_checkpoint is not None:

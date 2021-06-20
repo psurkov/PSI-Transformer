@@ -1,3 +1,4 @@
+import copy
 import itertools
 import json
 import os
@@ -196,6 +197,7 @@ class TreeTokenizer(Stateful):
 class TreeBuilder:
     def __init__(self, tree: Tree, tokenizer: TreeTokenizer):
         self._tree = tree
+        self._tree.complete_compressed_nodes()
         self._tokenizer = tokenizer
 
         self._cur_arbitrary_ids = []
@@ -203,6 +205,15 @@ class TreeBuilder:
     @property
     def tree(self) -> Tree:
         return self._tree
+
+    @property
+    def ids(self) -> List[int]:
+        return self._tokenizer.encode_tree(self._tree)
+
+    def copy(self) -> "TreeBuilder":
+        new_nodes = list(copy.deepcopy(self._tree.nodes[0]).dfs_order)
+        new_tree = Tree(new_nodes, self._tree.stats_collector)
+        return TreeBuilder(new_tree, self._tokenizer)
 
     def get_next_possible_ids(self) -> Set[int]:
         if self._cur_arbitrary_ids:

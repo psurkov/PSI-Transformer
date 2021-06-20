@@ -4,6 +4,7 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 
 from src.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
+from src.psi_datapoint.tree_structures.LineBreaker import LineBreaker
 from src.utils import run_with_config
 
 
@@ -50,10 +51,10 @@ def test_trees(jsonl_path: str, tree_facade: PSIDatapointFacade, verbose: bool) 
                 orig_nodes = tree_facade.inverse_transform(tree)
                 built_nodes = tree_facade.inverse_transform(tree_builder.tree)
 
-                if built_nodes[0].program != orig_nodes[0].program:
+                if LineBreaker.program(built_nodes) != LineBreaker.program(orig_nodes):
                     print(f"Diff between mock (after transformations) and (after tokenization and detokenization)")
                     for text in difflib.unified_diff(
-                        built_nodes[0].program.split("\n"), orig_nodes[0].program.split("\n")
+                        LineBreaker.program(built_nodes).split("\n"), LineBreaker.program(orig_nodes).split("\n")
                     ):
                         if text[:3] not in ("+++", "---", "@@ "):
                             print(text)

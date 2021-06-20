@@ -21,6 +21,10 @@ class Tree:
     def compressed_size(self) -> int:
         return sum(node.is_visible for node in self._nodes_dfs_order)
 
+    @property
+    def stats_collector(self) -> StatsCollector:
+        return self._stats
+
     def _get_node_with_next_child(self) -> Optional[Node]:
         assert self._nodes_dfs_order
 
@@ -59,7 +63,7 @@ class Tree:
 
         if not self._nodes_dfs_order:
             self._nodes_dfs_order = [node]
-            self._complete_compressed_nodes()
+            self.complete_compressed_nodes()
             return
 
         parent_with_next_child = self._get_node_with_next_child()
@@ -67,9 +71,9 @@ class Tree:
 
         parent_with_next_child.add_child(node)
         self._nodes_dfs_order.append(node)
-        self._complete_compressed_nodes()
+        self.complete_compressed_nodes()
 
-    def _complete_compressed_nodes(self) -> None:
+    def complete_compressed_nodes(self) -> None:
         parent_with_next_child = self._get_node_with_next_child()
         if parent_with_next_child is None:
             return
@@ -84,7 +88,7 @@ class Tree:
             node = Node(name, is_arbitrary=False, is_leaf=is_leaf)
             parent_with_next_child.add_child(node)
             self._nodes_dfs_order.append(node)
-            self._complete_compressed_nodes()
+            self.complete_compressed_nodes()
 
     @property
     def program(self) -> str:

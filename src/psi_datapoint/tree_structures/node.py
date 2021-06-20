@@ -11,25 +11,6 @@ class PSIConstants(Enum):
 
 _NODE_NAME_TO_VALUE = {"DOC_COMMENT_START": "/*", "DOC_COMMENT_END": "*/"}
 
-# Whitespaces stuff
-_IS_NEED_NEWLINE = re.compile(
-    "|".join(
-        f"{node}\\w*"
-        for node in (
-            "SEMICOLON",
-            "LBRACE",
-            "RBRACE",
-            "DOC_COMMENT_END",
-            "END_OF_LINE_COMMENT",
-            "C_STYLE_COMMENT",
-        )
-    )
-)
-_TO_OFF_NEWLINE = re.compile("|".join(f"{node}\\w*" for node in ("FOR_STATEMENT",)))
-_START_OFF = re.compile("|".join(f"{node}\\w*" for node in ("LPARENTH",)))
-_END_OFF = re.compile("|".join(f"{node}\\w*" for node in ("RPARENTH",)))
-_INDENT_IN = re.compile("|".join(f"{node}\\w*" for node in ("LBRACE",)))
-_INDENT_OUT = re.compile("|".join(f"{node}\\w*" for node in ("RBRACE",)))
 
 _ARBITRARY_NAME_REGEX = re.compile(
     "|".join(
@@ -109,44 +90,6 @@ class Node:
         if self.children:
             for child in self.children:
                 yield from child.dfs_order
-
-    @property
-    def program(self) -> str:
-        indent = "    "
-        need_newline = False
-        indent_level = 0
-        parenth_cnt = None
-        strings = []
-        for node in self.dfs_order:
-            if _TO_OFF_NEWLINE.search(node.name):
-                parenth_cnt = -1  # -1 means waiting for the first _START_OFF
-            if parenth_cnt == -1 and _START_OFF.search(node.name):
-                parenth_cnt = 1
-            elif parenth_cnt is not None and _START_OFF.search(node.name):
-                parenth_cnt += 1
-            elif parenth_cnt is not None and _END_OFF.search(node.name):
-                parenth_cnt -= 1
-
-            if parenth_cnt is None or parenth_cnt == 0:
-                parenth_cnt = None
-                if _IS_NEED_NEWLINE.search(node.name):
-                    need_newline = True
-                if _INDENT_IN.search(node.name):
-                    indent_level += 1
-                if _INDENT_OUT.search(node.name):
-                    assert f"\n{indent}" in strings[-1]
-                    strings[-1] = strings[-1][:-4]
-                    indent_level -= 1
-
-            if node.is_leaf and node.name != TreeConstants.END_OF_CHILDREN.value:
-                strings.append(node.name)
-                if need_newline:
-                    strings.append(f"\n{indent * indent_level}")
-                    need_newline = False
-                else:
-                    strings.append(" ")
-
-        return "".join(strings)
 
     @property
     def tree_representation(self) -> str:

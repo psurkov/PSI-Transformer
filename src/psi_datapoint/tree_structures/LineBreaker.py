@@ -85,6 +85,7 @@ class LineBreaker:
                     cur_indent_level += indent_change
                     nodes_lines.append((cur_indent_level, cur_node_line))
                 cur_node_line = []
+        nodes_lines.append((cur_indent_level, cur_node_line))
 
         _, nodes_lines_list = zip(*nodes_lines)
         return [

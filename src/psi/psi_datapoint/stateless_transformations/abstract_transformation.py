@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 
-from src.psi_datapoint.tree_structures.node import Node
+from src.psi.psi_datapoint.tree_structures.node import Node
 
 
 class Transformation(ABC):

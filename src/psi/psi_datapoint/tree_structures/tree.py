@@ -1,7 +1,7 @@
 from typing import List, Optional, Set
 
-from src.psi_datapoint.stateful.stats_collector import StatsCollector
-from src.psi_datapoint.tree_structures.node import Node, TreeConstants
+from src.psi.psi_datapoint.stateful.stats_collector import StatsCollector
+from src.psi.psi_datapoint.tree_structures.node import Node, TreeConstants
 
 
 class Tree:
@@ -26,8 +26,6 @@ class Tree:
         return self._stats
 
     def _get_node_with_next_child(self) -> Optional[Node]:
-        assert self._nodes_dfs_order
-
         for node in reversed(self._nodes_dfs_order):
             if node.is_leaf:
                 continue

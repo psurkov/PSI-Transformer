@@ -6,7 +6,7 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
 
-def run_with_config(fn: callable, default_config_path: str = "src/config.yaml"):
+def run_with_config(fn: callable, default_config_path: str = "src/common/configs/config_psi.yaml"):
     args = argparse.ArgumentParser()
     args.add_argument("--config", default=default_config_path, type=str, help="Path to YAML config")
     args = args.parse_args()

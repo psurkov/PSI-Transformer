@@ -1,3 +1,4 @@
+import abc
 from typing import Optional, Tuple, List, Dict
 
 import pytorch_lightning as pl
@@ -6,12 +7,10 @@ from omegaconf import DictConfig
 from torchmetrics import MetricCollection
 from transformers import GPT2Config, GPT2LMHeadModel, AdamW
 
-from src.model_training.pl_datamodule import PSIDataModule
-from src.model_training.single_token_metrics import AccuracyMRR
-from src.utils import get_linear_schedule_with_warmup
+from src.common.utils import get_linear_schedule_with_warmup
 
 
-class PSIBasedModel(pl.LightningModule):
+class GPT2LMHead(pl.LightningModule, abc.ABC):
     def __init__(self, config: DictConfig) -> None:
         super().__init__()
         self._config = config
@@ -29,15 +28,19 @@ class PSIBasedModel(pl.LightningModule):
         else:
             raise ValueError(f"Unsupported model type: {self._config.model.type}")
 
-        metrics = dict()
-        for holdout in ["train", "val", "test"]:
-            for node_type in ["overall", "bpeleaf", "staticleaf", "nonleaf"]:
-                metrics[f"{holdout}/{node_type}"] = AccuracyMRR(
-                    ignore_index=self._config.model.labels_pad,
-                    top_k=5,
-                    shift=True,
-                )
-        self._metrics = MetricCollection(metrics)
+        self._metrics = self._get_metrics()
+
+    @abc.abstractmethod
+    def _get_metrics(self) -> MetricCollection:
+        pass
+
+    @abc.abstractmethod
+    def _update_metrics(self, logits: torch.Tensor, labels: torch.Tensor, holdout: str) -> Dict[str, torch.Tensor]:
+        pass
+
+    @abc.abstractmethod
+    def _compute_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
+        pass
 
     def forward(
         self,
@@ -87,11 +90,11 @@ class PSIBasedModel(pl.LightningModule):
 
     def validation_step_end(self, batch_parts_outputs: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         logits, labels = batch_parts_outputs["logits"], batch_parts_outputs["labels"]
-        return self._calc_single_token_metrics(logits, labels, "val")
+        return self._update_metrics(logits, labels, "val")
 
     def validation_epoch_end(self, outs: List[Dict[str, torch.Tensor]]):
         self.log_dict(
-            self._aggregate_single_token_metrics("val"),
+            self._compute_metrics("val"),
             on_step=False,
             on_epoch=True,
         )
@@ -103,42 +106,14 @@ class PSIBasedModel(pl.LightningModule):
 
     def test_step_end(self, batch_parts_outputs: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         logits, labels = batch_parts_outputs["logits"], batch_parts_outputs["labels"]
-        return self._calc_single_token_metrics(logits, labels, "test")
+        return self._update_metrics(logits, labels, "test")
 
     def test_epoch_end(self, outs: List[Dict[str, torch.Tensor]]):
         self.log_dict(
-            self._aggregate_single_token_metrics("test"),
+            self._compute_metrics("test"),
             on_step=False,
             on_epoch=True,
         )
-
-    def _update_metrics_with_mask(
-        self, logits: torch.Tensor, labels: torch.Tensor, holdout: str, node_type: str, mask: Optional[torch.Tensor]
-    ) -> Dict[str, torch.Tensor]:
-        if mask is not None:
-            labels = labels.clone()
-            labels[mask] = self._config.model.labels_pad
-        return {f"{holdout}/{node_type}_{k}": v for k, v in self._metrics[f"{holdout}/{node_type}"](logits, labels).items()}
-
-    def _calc_single_token_metrics(
-        self, logits: torch.Tensor, labels: torch.Tensor, holdout: str
-    ) -> Dict[str, torch.Tensor]:
-        res = dict()
-        datamodule: PSIDataModule = self.trainer.datamodule
-        arbitrary_mask, static_leaf_mask, non_leaf_mask = datamodule.psi_facade.tokenizer.classify_ids(labels)
-
-        res.update(self._update_metrics_with_mask(logits, labels, holdout, "overall", mask=None))
-        res.update(self._update_metrics_with_mask(logits, labels, holdout, "nonleaf", mask=non_leaf_mask))
-        res.update(self._update_metrics_with_mask(logits, labels, holdout, "staticleaf", mask=static_leaf_mask))
-        res.update(self._update_metrics_with_mask(logits, labels, holdout, "bpeleaf", mask=arbitrary_mask))
-
-        return res
-
-    def _aggregate_single_token_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
-        res = dict()
-        for node_type in ["overall", "bpeleaf", "staticleaf", "nonleaf"]:
-            res.update({f"{holdout}/{node_type}_{k}": v for k, v in self._metrics[f"{holdout}/{node_type}"].compute().items()})
-        return res
 
     def configure_optimizers(self):
         total_batch_size = (

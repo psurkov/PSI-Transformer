@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, Optional, List
 
-from src.psi_datapoint.tree_structures.node import Node, TreeConstants
+from src.psi.psi_datapoint.tree_structures.node import Node, TreeConstants
 
 
 class LineBreaker:

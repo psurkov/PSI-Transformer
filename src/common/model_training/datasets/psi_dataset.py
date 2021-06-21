@@ -1,4 +1,3 @@
-import itertools
 import math
 from random import shuffle
 from typing import Iterator, List, Tuple
@@ -7,7 +6,7 @@ import torch
 from omegaconf import DictConfig
 from torch.utils.data import IterableDataset, get_worker_info
 
-from src.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
+from src.psi.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
 
 
 class PSIDataset(IterableDataset):
@@ -24,13 +23,13 @@ class PSIDataset(IterableDataset):
 
         self._holdout = holdout
         if holdout == "train":
-            self._data_path = config.source_data.train_jsonl
+            self._data_path = config.source_data.train
             self._need_shuffle = True
         elif holdout == "val":
-            self._data_path = config.source_data.val_jsonl
+            self._data_path = config.source_data.val
             self._need_shuffle = False
         elif holdout == "test":
-            self._data_path = config.source_data.test_jsonl
+            self._data_path = config.source_data.test
             self._need_shuffle = False
         else:
             raise ValueError(f"Invalid holdout value {holdout}")

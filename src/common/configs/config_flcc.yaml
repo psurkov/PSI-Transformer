@@ -1,0 +1,58 @@
+save_path: out/flcc
+
+source_data:
+#  train: data/flcc/java-med-out/java-med-out.train.txt
+  train: data/flcc/java-small-out/java-small-out.val.txt
+#  val: data/flcc/java-med-out/java-med-out.val.txt
+  val: data/flcc/java-small-out/java-small-out.val.txt
+#  test: data/flcc/java-med-out/java-med-out.test.txt
+  test: data/flcc/java-small-out/java-small-out.test.txt
+  mock_jsonl: data/flcc/mock-out.train.txt
+
+tokenizer:
+  vocab_size: 16384
+  min_frequency: 100
+  dropout: 0
+
+dataset:
+  # Number of files which will be loaded and shuffled
+  # Larger number => better shuffling & bigger memory consumption and dataset latency
+  shuffle_bucket: 500
+  # Examples will be sliced into pieces due to model's capacities
+  # Researchers often do slicing with overlapping so model can see some history for every token
+  overlap_slicing: 0.1
+  # Whether to pad labels for overlapped tokens
+  pad_overlapped: True
+
+model:
+  type: "gpt-2"
+  hidden_size: 128
+  n_layers: 1
+  context_length: 64
+  labels_pad: -100  # HF format
+
+training:
+  # Path to .ckpt file or Nothing (None isn't working)
+  # Path can be in "%datetime%/%name%.ckpt" format or just regular path
+  resume_from_checkpoint:
+  # Learning rate for single example (will be scaled according to total batch size)
+  base_lr: 0.0000078125
+  adam_eps: 1e-8
+
+  epochs: 5
+  batch_size: 6
+  grad_accumulation_steps: 1
+  max_grad_norm: 1.0
+  warmup_tokens: 50000000
+  weight_decay: 0.1
+
+  val_check_interval: 0.1
+  save_top_k: 30
+
+  fp16: True
+  fp16_opt_level: "O2"
+  num_dataset_workers: 7
+  local_rank: ???  # means cannot be read before assignment
+  world_size: ???  # means cannot be read before assignment
+  n_gpus: 0  # 0 means CPU only
+  seed: 0xB1B7E

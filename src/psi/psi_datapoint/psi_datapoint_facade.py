@@ -8,12 +8,11 @@ import numpy as np
 import tqdm
 from omegaconf import OmegaConf, DictConfig
 
-from src.psi_datapoint.stateful.tokenizer import TreeTokenizer, TreeBuilder
-from src.psi_datapoint.stateful.stats_collector import StatsCollector
-from src.psi_datapoint.stateless_transformations.children_amount_normalization import ChildrenAmountNormalizer
-from src.psi_datapoint.tree_structures.node import Node, PSIConstants
-from src.psi_datapoint.tree_structures.tree import Tree
-
+from src.psi.psi_datapoint.stateful.stats_collector import StatsCollector
+from src.psi.psi_datapoint.stateful.tokenizer import TreeTokenizer, TreeBuilder
+from src.psi.psi_datapoint.stateless_transformations.children_amount_normalization import ChildrenAmountNormalizer
+from src.psi.psi_datapoint.tree_structures.node import Node, PSIConstants
+from src.psi.psi_datapoint.tree_structures.tree import Tree
 
 TRANSFORMATIONS = [  # Order in the dict must be preserved
     ("children_amount_normalization", ChildrenAmountNormalizer),
@@ -104,7 +103,7 @@ class PSIDatapointFacade:
         # stats calculation
         trees_amount = 0
         nodes_amount_list = []
-        with open(self._config.source_data.train_jsonl, "r") as f:
+        with open(self._config.source_data.train, "r") as f:
             for line in tqdm.tqdm(f, desc="Calculating stats of jsonl..."):
                 trees_amount += 1
                 try:
@@ -122,7 +121,7 @@ class PSIDatapointFacade:
         bar = tqdm.tqdm(total=sum(nodes_amount_list) - skipped_nodes_count, desc="Parsing trees...")
         skipped_trees_count = (100 - self._config.psi_pretraining.max_percentile) * 0.01 * trees_amount
         nodes_lists = []
-        with open(self._config.source_data.train_jsonl, "r") as f:
+        with open(self._config.source_data.train, "r") as f:
             for json_string, is_ok in zip(f, jsonl_mask):
                 if is_ok:
                     json_dict = json.loads(json_string)
@@ -166,8 +165,8 @@ class PSIDatapointFacade:
             for tree in tqdm.tqdm(trees, desc="Collecting stats about tokenized trees train...")
         ]
         self._stats["tree_tokenized_sizes_train"] = tree_tokenized_sizes
-        self._stats["tree_tokenized_sizes_val"] = self._count_tokenized_sizes(self._config.source_data.val_jsonl)
-        self._stats["tree_tokenized_sizes_test"] = self._count_tokenized_sizes(self._config.source_data.test_jsonl)
+        self._stats["tree_tokenized_sizes_val"] = self._count_tokenized_sizes(self._config.source_data.val)
+        self._stats["tree_tokenized_sizes_test"] = self._count_tokenized_sizes(self._config.source_data.test)
 
         self._save_pretrained(self._config.save_path)
 

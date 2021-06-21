@@ -5,8 +5,8 @@ import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
-from src.model_training.psi_dataset import PSIDataset
-from src.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
+from src.common.model_training.datasets.psi_dataset import PSIDataset
+from src.psi.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
 
 
 class PSIDataModule(pl.LightningDataModule):

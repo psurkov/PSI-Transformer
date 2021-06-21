@@ -3,22 +3,22 @@ import os
 from omegaconf import DictConfig
 from tqdm import tqdm
 
-from src.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
-from src.psi_datapoint.tree_structures.LineBreaker import LineBreaker
-from src.utils import run_with_config
+from src.common.utils import run_with_config
+from src.psi.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
+from src.psi.psi_datapoint.tree_structures.line_breaker import LineBreaker
 
 
 def generate_full_line_dataset(
-    config: DictConfig, example_split_symbol: str = "␢", out_dir: str = "flcc_vanilla_data"
+    config: DictConfig, example_split_symbol: str = "␢", out_dir: str = "data/flcc"
 ) -> None:
     psi_datapoint = PSIDatapointFacade(config)
     os.makedirs(out_dir, exist_ok=True)
 
     for in_path in [
-        config.source_data.mock_jsonl,
-        config.source_data.train_jsonl,
-        config.source_data.val_jsonl,
-        config.source_data.test_jsonl,
+        config.source_data.mock,
+        config.source_data.train,
+        config.source_data.val,
+        config.source_data.test,
     ]:
         out_path = os.path.join(out_dir, f"{os.path.splitext(os.path.basename(in_path))[0]}.txt")
         with open(in_path, "r") as in_file:

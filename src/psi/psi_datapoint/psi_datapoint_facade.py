@@ -24,7 +24,7 @@ class PSIDatapointFacade:
     _stats_filename = "psi/dataset_stats.json"
     _config_filename = "config.yaml"
 
-    def __init__(self, config: DictConfig):
+    def __init__(self, config: DictConfig, diff_warning: bool = True):
         self._config = config
 
         self._overwrite = self._config.psi_pretraining.overwrite
@@ -37,7 +37,7 @@ class PSIDatapointFacade:
                 self._stats = json.load(f)
 
             config = OmegaConf.load(os.path.join(pretrained_path, PSIDatapointFacade._config_filename))
-            if self._config != config:
+            if diff_warning and self._config != config:
                 print(f"WARNING:\nLoaded config doesn't match current config! Diff:")
                 for text in difflib.unified_diff(
                     OmegaConf.to_yaml(config).split("\n"), OmegaConf.to_yaml(self._config).split("\n")

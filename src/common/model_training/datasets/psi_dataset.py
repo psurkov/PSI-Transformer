@@ -34,7 +34,7 @@ class PSIDataset(IterableDataset):
         else:
             raise ValueError(f"Invalid holdout value {holdout}")
 
-        self._psi_facade = PSIDatapointFacade(config)
+        self._psi_facade = PSIDatapointFacade(config, diff_warning=False)
         self._shuffle_bucket = config.dataset.shuffle_bucket
         self._overlap_slicing = config.dataset.overlap_slicing
         self._pad_overlapped = config.dataset.pad_overlapped

@@ -21,7 +21,7 @@ class LineExample:
 def extract_example(json_string: str, config: DictConfig, prompt_part: float) -> List[Optional[LineExample]]:
     examples = []
 
-    facade = PSIDatapointFacade(config)
+    facade = PSIDatapointFacade(config, diff_warning=False)
     res = facade.transform(json_string, to_filter=False)
     if res is None:
         examples.append(None)

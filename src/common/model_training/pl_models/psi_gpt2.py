@@ -10,8 +10,8 @@ from src.common.model_training.single_token_metrics import AccuracyMRR
 
 
 class PSIGPT2(GPT2LMHead):
-    def __init__(self, config: DictConfig):
-        super().__init__(config)
+    def __init__(self, config: DictConfig, actual_vocab_size: int):
+        super().__init__(config, actual_vocab_size)
 
     def _get_metrics(self) -> MetricCollection:
         metrics = dict()

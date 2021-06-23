@@ -11,13 +11,13 @@ from src.common.utils import get_linear_schedule_with_warmup
 
 
 class GPT2LMHead(pl.LightningModule, abc.ABC):
-    def __init__(self, config: DictConfig) -> None:
+    def __init__(self, config: DictConfig, actual_vocab_size: int) -> None:
         super().__init__()
         self._config = config
 
         if self._config.model.type == "gpt-2":
             model_config = GPT2Config(
-                vocab_size=self._config.tokenizer.vocab_size,
+                vocab_size=actual_vocab_size,
                 n_positions=self._config.model.context_length,
                 n_ctx=self._config.model.context_length,
                 n_embd=self._config.model.hidden_size,
@@ -29,6 +29,10 @@ class GPT2LMHead(pl.LightningModule, abc.ABC):
             raise ValueError(f"Unsupported model type: {self._config.model.type}")
 
         self._metrics = self._get_metrics()
+
+    @property
+    def model(self) -> GPT2LMHeadModel:
+        return self._model
 
     @abc.abstractmethod
     def _get_metrics(self) -> MetricCollection:

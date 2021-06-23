@@ -9,6 +9,7 @@ from pytorch_lightning.loggers import WandbLogger
 from src.common.model_training.pl_datamodule import PSIDataModule
 from src.common.model_training.pl_models.psi_gpt2 import PSIGPT2
 from src.common.utils import run_with_config
+from src.psi.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
 
 
 def train(config: DictConfig) -> None:
@@ -42,7 +43,9 @@ def train(config: DictConfig) -> None:
 
     cloud_logger = WandbLogger(project="PSI-Transformer", log_model=True, save_dir=config.save_path)
 
-    model = PSIGPT2(config)
+    facade = PSIDatapointFacade(config)
+    assert facade.is_trained
+    model = PSIGPT2(config, facade.tokenizer.vocab_size)
     datamodule = PSIDataModule(config)
 
     pl.seed_everything(config.training.seed)

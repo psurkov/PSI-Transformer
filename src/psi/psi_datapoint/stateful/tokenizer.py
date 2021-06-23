@@ -1,8 +1,7 @@
-import copy
 import itertools
 import json
 import os
-from typing import List, Optional, Iterable, Union, Tuple, Set
+from typing import List, Optional, Iterable, Union, Tuple
 
 import torch
 from tokenizers import Tokenizer
@@ -13,7 +12,6 @@ from tokenizers.trainers import BpeTrainer
 import tqdm
 
 from src.psi.psi_datapoint.stateful.abstract_stateful import Stateful
-from src.psi.psi_datapoint.tree_structures.node import TreeConstants
 from src.psi.psi_datapoint.tree_structures.tree import Tree
 
 
@@ -84,12 +82,16 @@ class TreeTokenizer(Stateful):
         return os.path.exists(os.path.join(path, TreeTokenizer._filename))
 
     @property
+    def vocab_size(self) -> int:
+        return self._vocab_size
+
+    @property
     def eov_id(self) -> int:
         return self._eov_id
 
     @property
     def arbitrary_ids(self) -> Iterable[int]:
-        return range(self._arbitrary_end_ind + 1)
+        return range(self.eov_id + 1, self._arbitrary_end_ind + 1)
 
     def encode_non_arbitrary_token(self, token: str) -> int:
         return self._special_vocab.get(token, self._special_vocab[self._special_unk])

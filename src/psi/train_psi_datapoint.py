@@ -10,7 +10,7 @@ from src.psi.psi_datapoint.tree_structures.line_breaker import LineBreaker
 
 def train(config: DictConfig) -> None:
     tree_loader = PSIDatapointFacade(config)
-    # tree_loader.train()
+    tree_loader.train()
 
     test_trees(config.source_data.mock, tree_loader, verbose=True)
     test_trees(config.source_data.val, tree_loader, verbose=False)

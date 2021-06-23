@@ -7,3 +7,4 @@ torch==1.8.1
 pytorch-lightning<1.2.0
 wandb==0.10.30
 torchmetrics==0.3.2
+editdistance==0.5.3

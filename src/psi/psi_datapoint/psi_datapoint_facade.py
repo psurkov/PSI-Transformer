@@ -9,10 +9,11 @@ import tqdm
 from omegaconf import OmegaConf, DictConfig
 
 from src.psi.psi_datapoint.stateful.stats_collector import StatsCollector
-from src.psi.psi_datapoint.stateful.tokenizer import TreeTokenizer, TreeBuilder
+from src.psi.psi_datapoint.stateful.tokenizer import TreeTokenizer
 from src.psi.psi_datapoint.stateless_transformations.children_amount_normalization import ChildrenAmountNormalizer
 from src.psi.psi_datapoint.tree_structures.node import Node, PSIConstants
 from src.psi.psi_datapoint.tree_structures.tree import Tree
+from src.psi.psi_datapoint.tree_structures.tree_builder import TreeBuilder
 
 TRANSFORMATIONS = [  # Order in the dict must be preserved
     ("children_amount_normalization", ChildrenAmountNormalizer),
@@ -204,15 +205,22 @@ class PSIDatapointFacade:
 
         transformed_nodes = self._apply_transformations(nodes)
         transformed_nodes = self._stats_collector.transform(transformed_nodes)
-        if to_filter and transformed_nodes is None:
+        if transformed_nodes is None:
             return None
         tree = Tree(transformed_nodes, self._stats_collector)
         ids = self._tokenizer.encode_tree(tree)
         return tree, ids
 
-    def get_tree_builder(self, tree: Optional[Tree] = None) -> TreeBuilder:
+    def get_tree_builder(self, nodes_or_tree: Optional[Union[list[Node], Tree]] = None) -> TreeBuilder:
         assert self._trained
-        return TreeBuilder(tree if tree else Tree([], self._stats_collector), self._tokenizer)
+        if nodes_or_tree is None:
+            return TreeBuilder(Tree([], self._stats_collector), self._tokenizer)
+        elif isinstance(nodes_or_tree, list):
+            return TreeBuilder(Tree(nodes_or_tree, self._stats_collector), self._tokenizer)
+        elif isinstance(nodes_or_tree, Tree):
+            TreeBuilder(nodes_or_tree, self._tokenizer)
+        else:
+            raise TypeError(f"Node or tree must be Tree, List[Node] or None. But got {type(nodes_or_tree)}")
 
     def inverse_transform(self, tree: Tree) -> List[Node]:
         assert self._trained

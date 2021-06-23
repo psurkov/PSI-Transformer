@@ -29,8 +29,8 @@ class LineBreaker:
         self._indentation_change = None
 
     @staticmethod
-    def program(nodes: List[Node]) -> str:
-        lines_str, lines_nodes = LineBreaker.get_lines(nodes)
+    def program(nodes: List[Node], indent: str = "    ", delimeter: str = " ") -> str:
+        lines_str, lines_nodes = LineBreaker.get_lines(nodes, indent, delimeter)
         return "\n".join(lines_str)
 
     def __call__(self, node: Node) -> Tuple[bool, Optional[int]]:

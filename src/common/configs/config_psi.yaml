@@ -1,4 +1,4 @@
-save_path: out/psi
+save_path: out/
 
 source_data:
 #  train: data/psi/java-med-out/java-med-out.train.jsonl
@@ -36,9 +36,9 @@ dataset:
 
 model:
   type: "gpt-2"
-  hidden_size: 128
-  n_layers: 1
-  context_length: 64
+  hidden_size: 1024
+  n_layers: 18
+  context_length: 384
   labels_pad: -100  # HF format
 
 training:

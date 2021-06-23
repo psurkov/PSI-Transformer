@@ -55,43 +55,43 @@ class Tree:
             children_names.add(TreeConstants.ARBITRARY_REPR.value)
         return children_names
 
-    def add_node(self, name: str, is_arbitrary: bool) -> None:
+    def add_node(self, name: str, is_arbitrary: bool) -> list[Node]:
         is_leaf = is_arbitrary or self._stats.is_non_arbitrary_leaf(name)
         node = Node(name, is_arbitrary, is_leaf)
 
+        added_nodes = []
         if not self._nodes_dfs_order:
             self._nodes_dfs_order = [node]
-            self.complete_compressed_nodes()
-            return
+            added_nodes.append(node)
+            added_nodes.extend(self.complete_compressed_nodes())
+            return added_nodes
 
         parent_with_next_child = self._get_node_with_next_child()
         assert parent_with_next_child is not None
 
         parent_with_next_child.add_child(node)
         self._nodes_dfs_order.append(node)
-        self.complete_compressed_nodes()
+        added_nodes.append(node)
+        added_nodes.extend(self.complete_compressed_nodes())
+        return added_nodes
 
-    def complete_compressed_nodes(self) -> None:
-        parent_with_next_child = self._get_node_with_next_child()
-        if parent_with_next_child is None:
-            return
-        next_children_names = self._stats.get_children_names(
-            parent_with_next_child.name, len(parent_with_next_child.children)
-        )
-        if len(next_children_names) == 1:
-            name = next(iter(next_children_names))
-            if name == TreeConstants.ARBITRARY_REPR.value:
-                return
-            is_leaf = self._stats.is_non_arbitrary_leaf(name)
-            node = Node(name, is_arbitrary=False, is_leaf=is_leaf)
-            parent_with_next_child.add_child(node)
-            self._nodes_dfs_order.append(node)
-            self.complete_compressed_nodes()
-
-    @property
-    def program(self) -> str:
-        return self._nodes_dfs_order[0].program
-
-    @property
-    def tree_representation(self) -> str:
-        return self._nodes_dfs_order[0].tree_representation
+    def complete_compressed_nodes(self) -> list[Node]:
+        completed_nodes = []
+        while True:
+            parent_with_next_child = self._get_node_with_next_child()
+            if parent_with_next_child is None:
+                return completed_nodes
+            next_children_names = self._stats.get_children_names(
+                parent_with_next_child.name, len(parent_with_next_child.children)
+            )
+            if len(next_children_names) == 1:
+                name = next(iter(next_children_names))
+                if name == TreeConstants.ARBITRARY_REPR.value:
+                    return completed_nodes
+                is_leaf = self._stats.is_non_arbitrary_leaf(name)
+                node = Node(name, is_arbitrary=False, is_leaf=is_leaf)
+                parent_with_next_child.add_child(node)
+                self._nodes_dfs_order.append(node)
+                completed_nodes.append(node)
+            else:
+                return completed_nodes

@@ -9,7 +9,7 @@ from src.psi.psi_datapoint.tree_structures.line_breaker import LineBreaker
 
 
 def generate_full_line_dataset(
-    config: DictConfig, example_split_symbol: str = "␢", out_dir: str = "data/flcc"
+    config: DictConfig, out_dir: str = "data/flcc"
 ) -> None:
     psi_datapoint = PSIDatapointFacade(config)
     os.makedirs(out_dir, exist_ok=True)
@@ -26,7 +26,7 @@ def generate_full_line_dataset(
                 for json_string in tqdm(in_file, desc=f"Converting data from {in_path}"):
                     nodes = psi_datapoint.json_to_tree(json_string, to_filter=True)
                     if nodes is not None:
-                        out_file.write(f"{example_split_symbol}\n{LineBreaker.program(nodes)}\n")
+                        out_file.write(f"{repr(LineBreaker.program(nodes))}\n")
 
 
 if __name__ == "__main__":

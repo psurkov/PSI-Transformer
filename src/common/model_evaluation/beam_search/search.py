@@ -4,6 +4,7 @@ from typing import List, Optional
 
 import torch
 
+from src.psi.psi_datapoint.tree_structures.line_breaker import LineBreaker
 from src.psi.psi_datapoint.tree_structures.tree_builder import TreeBuilder, ChangeStatus
 
 
@@ -122,7 +123,9 @@ class BeamSearch:
         tree_builders = []
         sort_mask = []
         sample_scores = []
-        sorted_scores, sorted_inds = torch.sort(log_probs, descending=True)
+        sorted_scores, sorted_inds = torch.topk(
+            log_probs, k=(1 + LineBreaker.get_num_newline_nodes()) * self._beam_size, sorted=False
+        )
         for ind, score in zip(sorted_inds, sorted_scores):
             if torch.isnan(score):
                 break

@@ -33,6 +33,10 @@ class LineBreaker:
         lines_str, lines_nodes = LineBreaker.get_lines(nodes, indent, delimeter)
         return "\n".join(lines_str)
 
+    @staticmethod
+    def get_num_newline_nodes() -> int:
+        return len(LineBreaker._new_line_nodes)
+
     def __call__(self, node: Node) -> Tuple[bool, Optional[int]]:
         if not self._need_newline:
             if LineBreaker._turn_off_break.search(node.name):

@@ -1,3 +1,8 @@
+import dataclasses
+import itertools
+import json
+import os
+
 import editdistance
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -8,6 +13,29 @@ from src.common.model_evaluation.lines_extractor import extract_lines
 from src.common.model_training.pl_models.psi_gpt2 import PSIGPT2
 from src.psi.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
 from src.psi.psi_datapoint.tree_structures.line_breaker import LineBreaker
+
+
+@dataclasses.dataclass
+class Prediction:
+    prediction: str
+    length: int
+    score: float
+    is_terminated: bool
+
+
+@dataclasses.dataclass
+class EvaluationResult:
+    context: str
+    target: str
+    preds: list[Prediction]
+
+    @staticmethod
+    def fromdict(d: dict) -> "EvaluationResult":
+        preds = [
+            Prediction(pred["prediction"], pred["length"], pred["score"], pred["is_terminated"])
+            for pred in d["predictions"]
+        ]
+        return EvaluationResult(d["context"], d["target"], preds)
 
 
 def edit_similarity(a: str, b: str) -> float:
@@ -22,42 +50,33 @@ def evaluate(
     holdout: str,
     num_iterations: int,
     beam_size: int,
-    len_norm_base: float,
-    len_norm_pow: float,
 ):
     facade = PSIDatapointFacade(config)
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     model = PSIGPT2.load_from_checkpoint(
         pl_ckpt_path, map_location=device, config=config, actual_vocab_size=facade.tokenizer.vocab_size
     ).model
     model_wrapper = PSIGPT2Wrapper(config, model)
     sequence_generator = SequenceGenerator(model_wrapper, num_iterations, beam_size)
 
-    for prompt_part in (0.0, 0.2, 0.5):
-        for line_example in extract_lines(config, holdout, prompt_part):
-            terminated_hyps, current_hyps = sequence_generator.search_sequence(
-                num_iterations=num_iterations, tree_builder=line_example.context_tree_builder
-            )
-            hyps = sorted(
-                current_hyps + terminated_hyps,
-                key=lambda x: x.get_normalized_score(len_norm_base, len_norm_pow),
-                reverse=True,
-            )
-            whole_program = LineBreaker.program(hyps[0].tree_builder.tree.nodes, indent="")
-            assert whole_program.startswith(line_example.context_str)
-            context = whole_program[: len(line_example.context_str)]
-
-            print(f"=========\n{context}\n=========\nActual: {repr(line_example.target_str)}\n")
-
-            for hyp in hyps:
-                whole_program = LineBreaker.program(hyp.tree_builder.tree.nodes, indent="")
-                assert whole_program.startswith(line_example.context_str)
-                pred = whole_program[len(line_example.context_str) :]
-                sim = edit_similarity(pred, line_example.target_str)
-                print(
-                    f"Model pred: {repr(pred)}\n"
-                    f"Edit similarity: {sim:.2f}, score: {hyp.get_normalized_score(len_norm_base, len_norm_pow)}"
+    for prompt_part in (0.1, 0.25, 0.5):
+        out_file = os.path.join(config.save_path, f"evaluation_{holdout}_prompt{prompt_part}.jsonl")
+        with open(out_file, "w") as out:
+            for line_example in extract_lines(config, holdout, prompt_part):
+                terminated_hyps, current_hyps = sequence_generator.search_sequence(
+                    num_iterations=num_iterations, tree_builder=line_example.context_tree_builder
                 )
+
+                predictions = []
+                for hyp in itertools.chain(terminated_hyps, current_hyps):
+                    whole_program = LineBreaker.program(hyp.tree_builder.tree.nodes, indent="")
+                    context, pred = (
+                        whole_program[: len(line_example.context_str)],
+                        whole_program[len(line_example.context_str) :],
+                    )
+                    predictions.append(Prediction(pred, len(hyp.ids), hyp.score, hyp.is_terminated))
+                eval_res = EvaluationResult(context, line_example.target_str, predictions)
+                out.write(f"{json.dumps(dataclasses.asdict(eval_res))}\n")
 
 
 if __name__ == "__main__":
@@ -70,8 +89,6 @@ if __name__ == "__main__":
             holdout="mock",
             num_iterations=30,
             beam_size=6,
-            len_norm_base=5.0,
-            len_norm_pow=0.7,
         )
 
     main()

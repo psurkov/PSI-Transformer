@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional, Iterable
 
 from omegaconf import DictConfig
 
@@ -17,7 +17,7 @@ class LineExample:
     target_str: str
 
 
-def extract_lines(config: DictConfig, holdout: str, prompt_part: float) -> List[Optional[LineExample]]:
+def extract_lines(config: DictConfig, holdout: str, prompt_part: float) -> Iterable[Optional[LineExample]]:
     assert 0.0 <= prompt_part <= 1.0, f"Invalid prompt part: {prompt_part}. Must be between 0.0 and 1.0"
     facade = PSIDatapointFacade(config)
     assert facade.is_trained
@@ -33,12 +33,11 @@ def extract_lines(config: DictConfig, holdout: str, prompt_part: float) -> List[
     else:
         raise ValueError(f"Invalid holdout {holdout}")
 
-    examples = []
     with open(data_path) as f:
         for json_string in tqdm(f, desc="Extracting line examples..."):
             res = facade.transform(json_string, to_filter=False)
             if res is None:
-                examples.append(None)
+                yield None
             else:
                 tree, _ = res
                 lines, lines_nodes = LineBreaker.get_lines(tree.nodes, indent="")
@@ -65,6 +64,4 @@ def extract_lines(config: DictConfig, holdout: str, prompt_part: float) -> List[
                     assert whole_context_str.startswith(example_context_str)
                     target_str = whole_context_str[len(example_context_str) :]
 
-                    examples.append(LineExample(example_context_str, tree_builder, target_str))
-
-    return examples
+                    yield LineExample(example_context_str, tree_builder, target_str)

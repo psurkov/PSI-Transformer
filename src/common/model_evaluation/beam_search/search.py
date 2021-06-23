@@ -131,7 +131,7 @@ class BeamSearch:
             tree_builder = self._tree_builders[hyp_ind].copy()
             change_status = tree_builder.add_id(token_ind)
             if change_status == ChangeStatus.END_LINE:
-                self._save_terminated(hyp_ind, token_ind, score, tree_builder)
+                self._save_terminated(hyp_ind, token_ind, score.item(), tree_builder)
             else:
                 samples.append(token_ind)
                 tree_builders.append(tree_builder)

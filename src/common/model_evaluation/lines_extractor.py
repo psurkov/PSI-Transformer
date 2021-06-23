@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import Optional, Iterable
+from multiprocessing import Pool, cpu_count
+from typing import Optional, Iterable, List
 
 from omegaconf import DictConfig
 
@@ -17,10 +18,45 @@ class LineExample:
     target_str: str
 
 
-def extract_lines(config: DictConfig, holdout: str, prompt_part: float) -> Iterable[Optional[LineExample]]:
-    assert 0.0 <= prompt_part <= 1.0, f"Invalid prompt part: {prompt_part}. Must be between 0.0 and 1.0"
+def extract_example(json_string: str, config: DictConfig, prompt_part: float) -> List[Optional[LineExample]]:
+    examples = []
+
     facade = PSIDatapointFacade(config)
-    assert facade.is_trained
+    res = facade.transform(json_string, to_filter=False)
+    if res is None:
+        examples.append(None)
+    else:
+        tree, _ = res
+        lines, lines_nodes = LineBreaker.get_lines(tree.nodes, indent="")
+
+        context_nodes = []
+        for line, line_nodes in zip(lines, lines_nodes):
+            leaf_inds = [i for i, node in enumerate(line_nodes) if node.is_leaf]
+            cut_ind = leaf_inds[int(prompt_part * len(leaf_inds))]
+            prompt_nodes = line_nodes[:cut_ind]
+
+            example_context_nodes = context_nodes + prompt_nodes
+            tree_builder = facade.get_tree_builder()
+            for id_ in facade.get_tree_builder(example_context_nodes).ids:
+                tree_builder.add_id(id_)
+
+            example_context_str = LineBreaker.program(tree_builder.tree.nodes, indent="")
+
+            context_nodes.extend(line_nodes)
+            tb = facade.get_tree_builder()
+            for id_ in facade.get_tree_builder(context_nodes).ids:
+                tb.add_id(id_)
+            whole_context_str = LineBreaker.program(tb.tree.nodes, indent="")
+
+            target_str = whole_context_str[len(example_context_str) :]
+
+            examples.append(LineExample(example_context_str, tree_builder, target_str))
+
+    return examples
+
+
+def extract_lines(config: DictConfig, holdout: str, prompt_part: float) -> List[LineExample]:
+    assert 0.0 <= prompt_part <= 1.0, f"Invalid prompt part: {prompt_part}. Must be between 0.0 and 1.0"
 
     if holdout == "mock":
         data_path = config.source_data.mock
@@ -34,34 +70,12 @@ def extract_lines(config: DictConfig, holdout: str, prompt_part: float) -> Itera
         raise ValueError(f"Invalid holdout {holdout}")
 
     with open(data_path) as f:
-        for json_string in tqdm(f, desc="Extracting line examples..."):
-            res = facade.transform(json_string, to_filter=False)
-            if res is None:
-                yield None
-            else:
-                tree, _ = res
-                lines, lines_nodes = LineBreaker.get_lines(tree.nodes, indent="")
+        json_strings = f.readlines()
 
-                context_nodes = []
-                for line, line_nodes in zip(lines, lines_nodes):
-                    leaf_inds = [i for i, node in enumerate(line_nodes) if node.is_leaf]
-                    cut_ind = leaf_inds[int(prompt_part * len(leaf_inds))]
-                    prompt_nodes = line_nodes[:cut_ind]
+    with Pool(cpu_count()) as pool:
+        line_examples_lists = pool.starmap(
+            extract_example,
+            tqdm([(json_string, config, prompt_part) for json_string in json_strings], desc="Extracting line examples"),
+        )
 
-                    example_context_nodes = context_nodes + prompt_nodes
-                    tree_builder = facade.get_tree_builder()
-                    for id_ in facade.get_tree_builder(example_context_nodes).ids:
-                        tree_builder.add_id(id_)
-
-                    example_context_str = LineBreaker.program(tree_builder.tree.nodes, indent="")
-
-                    context_nodes.extend(line_nodes)
-                    tb = facade.get_tree_builder()
-                    for id_ in facade.get_tree_builder(context_nodes).ids:
-                        tb.add_id(id_)
-                    whole_context_str = LineBreaker.program(tb.tree.nodes, indent="")
-
-                    assert whole_context_str.startswith(example_context_str)
-                    target_str = whole_context_str[len(example_context_str) :]
-
-                    yield LineExample(example_context_str, tree_builder, target_str)
+    return [example for line_examples in line_examples_lists for example in line_examples]

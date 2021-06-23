@@ -1,12 +1,12 @@
 save_path: out/
 
 source_data:
-#  train: data/psi/java-med-out/java-med-out.train.jsonl
-  train: data/psi/java-small-out/java-small-out.val.jsonl
-#  val: data/psi/java-med-out/java-med-out.val.jsonl
-  val: data/psi/java-small-out/java-small-out.val.jsonl
-#  test: data/psi/java-med-out/java-med-out.test.jsonl
-  test: data/psi/java-small-out/java-small-out.test.jsonl
+  train: data/psi/java-med-out/java-med-out.train.jsonl
+#  train: data/psi/java-small-out/java-small-out.val.jsonl
+  val: data/psi/java-med-out/java-med-out.val.jsonl
+#  val: data/psi/java-small-out/java-small-out.val.jsonl
+  test: data/psi/java-med-out/java-med-out.test.jsonl
+#  test: data/psi/java-small-out/java-small-out.test.jsonl
   mock: data/psi_mock/mock-out/mock-out.train.jsonl
 
 psi_pretraining:

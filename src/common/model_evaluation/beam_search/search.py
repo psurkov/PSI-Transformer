@@ -39,6 +39,7 @@ class BeamSearch:
         self._scores = None
         self._hypotheses = None
         self._sort_mask = None
+        self._row_mask = None
         self._tree_builders = [tree_builder]
 
         self._is_initialized = False
@@ -99,6 +100,7 @@ class BeamSearch:
         self._device = log_probs.device
         self._scores = torch.zeros(1, dtype=log_probs.dtype, device=log_probs.device)
         self._hypotheses = torch.empty(1, 0, dtype=torch.long, device=log_probs.device)
+        self._row_mask = torch.empty(log_probs.size(1), dtype=torch.bool, device=log_probs.device)
 
     def _step_check(self, log_probs: torch.Tensor) -> None:
         assert log_probs.size() == (
@@ -107,12 +109,11 @@ class BeamSearch:
         ), f"log_probs must have shape {(self.batch_size, self._vocab_size)}, but {log_probs.size()} was given"
 
     def _preprocess_log_probs(self, log_probs: torch.Tensor) -> torch.Tensor:
-        row_mask = torch.empty(log_probs.size(1), dtype=torch.bool, device=log_probs.device)
         for row_id, tree_builder in enumerate(self._tree_builders):
             possible_ids = list(tree_builder.get_next_possible_ids())
-            row_mask[:] = 1
-            row_mask[possible_ids] = 0
-            log_probs[row_id, row_mask] = float("-inf")
+            self._row_mask[:] = 1
+            self._row_mask[possible_ids] = 0
+            log_probs[row_id, self._row_mask] = float("-inf")
         return torch.nn.functional.log_softmax(log_probs, dim=-1)
 
     def _step(self, log_probs: torch.Tensor) -> Optional[torch.Tensor]:

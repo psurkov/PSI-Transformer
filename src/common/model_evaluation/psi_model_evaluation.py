@@ -6,7 +6,6 @@ import os
 import editdistance
 import torch
 from omegaconf import DictConfig, OmegaConf
-from tqdm import tqdm
 
 from src.common.model_evaluation.beam_search.psi_gpt_wrapper import PSIGPT2Wrapper
 from src.common.model_evaluation.beam_search.sequence_generator import SequenceGenerator
@@ -63,9 +62,9 @@ def evaluate(
     for prompt_part in (0.1, 0.25, 0.5):
         out_file = os.path.join(config.save_path, f"evaluation_{holdout}_prompt{prompt_part}.jsonl")
         with open(out_file, "w") as out:
-            for line_example in tqdm(
-                extract_lines(config, holdout, prompt_part), desc=f"Evaluationg {holdout} at prompt {prompt_part}"
-            ):
+            for line_example in extract_lines(config, holdout, prompt_part):
+                if not line_example.target_str:
+                    continue
                 terminated_hyps, current_hyps = sequence_generator.search_sequence(
                     num_iterations=num_iterations, tree_builder=line_example.context_tree_builder
                 )
@@ -90,8 +89,8 @@ if __name__ == "__main__":
             config,
             pl_ckpt_path="out/epoch=4-step=271529-val_overall_MRR@5=0.000.ckpt",
             holdout="mock",
-            num_iterations=30,
-            beam_size=6,
+            num_iterations=20,
+            beam_size=8,
         )
 
     main()

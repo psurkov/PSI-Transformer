@@ -18,10 +18,8 @@ class LineExample:
     target_str: str
 
 
-def extract_example(json_string: str, config: DictConfig, prompt_part: float) -> List[Optional[LineExample]]:
+def extract_example(json_string: str, facade: PSIDatapointFacade, prompt_part: float) -> List[Optional[LineExample]]:
     examples = []
-
-    facade = PSIDatapointFacade(config, diff_warning=False)
     res = facade.transform(json_string, to_filter=False)
     if res is None:
         examples.append(None)
@@ -55,9 +53,10 @@ def extract_example(json_string: str, config: DictConfig, prompt_part: float) ->
     return examples
 
 
-def extract_lines(config: DictConfig, holdout: str, prompt_part: float) -> List[LineExample]:
+def extract_lines(config: DictConfig, holdout: str, prompt_part: float) -> Iterable[LineExample]:
     assert 0.0 <= prompt_part <= 1.0, f"Invalid prompt part: {prompt_part}. Must be between 0.0 and 1.0"
 
+    facade = PSIDatapointFacade(config, diff_warning=False)
     if holdout == "mock":
         data_path = config.source_data.mock
     elif holdout == "train":
@@ -71,11 +70,5 @@ def extract_lines(config: DictConfig, holdout: str, prompt_part: float) -> List[
 
     with open(data_path) as f:
         json_strings = f.readlines()
-
-    with Pool(cpu_count()) as pool:
-        line_examples_lists = pool.starmap(
-            extract_example,
-            tqdm([(json_string, config, prompt_part) for json_string in json_strings], desc="Extracting line examples"),
-        )
-
-    return [example for line_examples in line_examples_lists for example in line_examples]
+    for json_string in json_strings:
+        yield from (example for example in extract_example(json_string, facade, prompt_part) if example is not None)

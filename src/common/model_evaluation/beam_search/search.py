@@ -10,7 +10,7 @@ from src.psi.psi_datapoint.tree_structures.tree_builder import TreeBuilder, Chan
 
 @dataclass
 class Hypothesis:
-    ids: list[int]
+    ids: List[int]
     tree_builder: TreeBuilder
     score: float
     is_terminated: bool
@@ -158,10 +158,10 @@ class BeamSearch:
 
     def _update_state(
         self,
-        samples: list[int],
-        sort_mask: list[int],
-        new_scores: list[float],
-        tree_builders: list[TreeBuilder],
+        samples: List[int],
+        sort_mask: List[int],
+        new_scores: List[float],
+        tree_builders: List[TreeBuilder],
     ) -> None:
         self._samples = torch.tensor(samples, dtype=torch.long, device=self._device)
         self._sort_mask = torch.tensor(sort_mask, dtype=torch.long, device=self._device)

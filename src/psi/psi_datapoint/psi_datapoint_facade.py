@@ -211,7 +211,7 @@ class PSIDatapointFacade:
         ids = self._tokenizer.encode_tree(tree)
         return tree, ids
 
-    def get_tree_builder(self, nodes_or_tree: Optional[Union[list[Node], Tree]] = None) -> TreeBuilder:
+    def get_tree_builder(self, nodes_or_tree: Optional[Union[List[Node], Tree]] = None) -> TreeBuilder:
         assert self._trained
         if nodes_or_tree is None:
             return TreeBuilder(Tree([], self._stats_collector), self._tokenizer)

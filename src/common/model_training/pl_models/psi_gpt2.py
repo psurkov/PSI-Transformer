@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 
 import torch
 from omegaconf import DictConfig
@@ -26,7 +26,7 @@ class PSIGPT2(GPT2LMHead):
 
     def _calc_single_token_metrics(
         self, logits: torch.Tensor, labels: torch.Tensor, holdout: str
-    ) -> dict[str, torch.Tensor]:
+    ) -> Dict[str, torch.Tensor]:
         res = dict()
         datamodule: PSIDataModule = self.trainer.datamodule
         arbitrary_mask, static_leaf_mask, non_leaf_mask = datamodule.psi_facade.tokenizer.classify_ids(labels)
@@ -38,7 +38,7 @@ class PSIGPT2(GPT2LMHead):
 
         return res
 
-    def _aggregate_single_token_metrics(self, holdout: str) -> dict[str, torch.Tensor]:
+    def _aggregate_single_token_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
         res = dict()
         for node_type in ["overall", "bpeleaf", "staticleaf", "nonleaf"]:
             res.update(
@@ -46,7 +46,7 @@ class PSIGPT2(GPT2LMHead):
             )
         return res
 
-    def _update_metrics(self, logits: torch.Tensor, labels: torch.Tensor, holdout: str) -> dict[str, torch.Tensor]:
+    def _update_metrics(self, logits: torch.Tensor, labels: torch.Tensor, holdout: str) -> Dict[str, torch.Tensor]:
         res = dict()
         datamodule: PSIDataModule = self.trainer.datamodule
         arbitrary_mask, static_leaf_mask, non_leaf_mask = datamodule.psi_facade.tokenizer.classify_ids(labels)
@@ -60,7 +60,7 @@ class PSIGPT2(GPT2LMHead):
 
     def _update_metrics_with_mask(
         self, logits: torch.Tensor, labels: torch.Tensor, holdout: str, node_type: str, mask: Optional[torch.Tensor]
-    ) -> dict[str, torch.Tensor]:
+    ) -> Dict[str, torch.Tensor]:
         if mask is not None:
             labels = labels.clone()
             labels[mask] = self._config.model.labels_pad
@@ -68,7 +68,7 @@ class PSIGPT2(GPT2LMHead):
             f"{holdout}/{node_type}_{k}": v for k, v in self._metrics[f"{holdout}/{node_type}"](logits, labels).items()
         }
 
-    def _compute_metrics(self, holdout: str) -> dict[str, torch.Tensor]:
+    def _compute_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
         res = dict()
         for node_type in ["overall", "bpeleaf", "staticleaf", "nonleaf"]:
             res.update(

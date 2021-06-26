@@ -1,3 +1,5 @@
+from typing import List, Tuple
+
 import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig
@@ -10,14 +12,14 @@ from src.psi.psi_datapoint.tree_structures.tree_builder import TreeBuilder
 
 class PSIGPT2Wrapper(ModelWrapper):
     def __init__(self, config: DictConfig, model: GPT2LMHeadModel):
-        self._psi_facade = PSIDatapointFacade(config)
+        self._psi_facade = PSIDatapointFacade(config, diff_warning=False)
         assert self._psi_facade.is_trained
         self._model = model.eval()
         print(f"Number of parameters: {sum(p.numel() for p in self._model.parameters())}")
 
         self._mems = None
 
-    def init_state(self, tree_builder: TreeBuilder, num_iterations: int) -> tuple[torch.Tensor, TreeBuilder]:
+    def init_state(self, tree_builder: TreeBuilder, num_iterations: int) -> Tuple[torch.Tensor, TreeBuilder]:
         context_len = self._model.config.n_ctx - num_iterations
 
         context_ids = tree_builder.ids[-context_len:]

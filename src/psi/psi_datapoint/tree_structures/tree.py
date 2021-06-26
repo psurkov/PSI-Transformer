@@ -55,7 +55,7 @@ class Tree:
             children_names.add(TreeConstants.ARBITRARY_REPR.value)
         return children_names
 
-    def add_node(self, name: str, is_arbitrary: bool) -> list[Node]:
+    def add_node(self, name: str, is_arbitrary: bool) -> List[Node]:
         is_leaf = is_arbitrary or self._stats.is_non_arbitrary_leaf(name)
         node = Node(name, is_arbitrary, is_leaf)
 
@@ -75,7 +75,7 @@ class Tree:
         added_nodes.extend(self.complete_compressed_nodes())
         return added_nodes
 
-    def complete_compressed_nodes(self) -> list[Node]:
+    def complete_compressed_nodes(self) -> List[Node]:
         completed_nodes = []
         while True:
             parent_with_next_child = self._get_node_with_next_child()

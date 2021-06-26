@@ -1,5 +1,6 @@
 import copy
 from enum import Enum
+from typing import List, Set
 
 from src.psi.psi_datapoint.stateful.tokenizer import TreeTokenizer
 from src.psi.psi_datapoint.tree_structures.line_breaker import LineBreaker
@@ -30,7 +31,7 @@ class TreeBuilder:
         return self._tree
 
     @property
-    def ids(self) -> list[int]:
+    def ids(self) -> List[int]:
         return self._tokenizer.encode_tree(self._tree)
 
     def copy(self) -> "TreeBuilder":
@@ -70,7 +71,7 @@ class TreeBuilder:
         else:
             return ChangeStatus.NO_CHANGE
 
-    def get_next_possible_ids(self) -> set[int]:
+    def get_next_possible_ids(self) -> Set[int]:
         if self._cur_arbitrary_ids:
             arbitrary_tokens = set(self._tokenizer.arbitrary_ids)
             arbitrary_tokens.add(self._tokenizer.eov_id)

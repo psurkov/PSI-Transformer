@@ -38,8 +38,7 @@ class TreeTokenizer(Stateful):
 
     def save_pretrained(self, path: str) -> None:
         path = os.path.join(path, TreeTokenizer._filename)
-        if not os.path.exists(path):
-            os.mkdir(path)
+        os.makedirs(path, exist_ok=True)
         self._bpe_tokenizer.save(os.path.join(path, "bpe_tokenizer.json"))
         with open(os.path.join(path, "tokenizer_stuff.json"), "w") as f:
             json.dump(

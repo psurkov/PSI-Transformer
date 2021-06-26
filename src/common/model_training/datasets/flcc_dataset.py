@@ -1,14 +1,14 @@
-import math
+import json
 from typing import Iterator, Tuple
 
 import torch
 from omegaconf import DictConfig
 
 from src.common.model_training.datasets.base_dataset import ParallelIterableDataset
-from src.psi.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
+from src.flcc.data_processing.tokenizer import FLCCBPE
 
 
-class PSIDataset(ParallelIterableDataset):
+class FLCCDataset(ParallelIterableDataset):
     def __init__(
         self,
         config: DictConfig,
@@ -40,23 +40,16 @@ class PSIDataset(ParallelIterableDataset):
             world_size=world_size,
         )
 
-        self._psi_facade = PSIDatapointFacade(config, diff_warning=False)
         self._example_len = config.model.context_length
+        self._tokenizer: FLCCBPE = FLCCBPE.from_pretrained(config.save_path)
 
     def __len__(self) -> int:
-        return (
-            sum(
-                int(math.ceil(size / ((1 - self._overlap_slicing) * self._example_len)))
-                for size in self._psi_facade.get_tokenized_sizes(self._holdout)
-            )
-            // self._world_size
-        )
+        pass
 
     def _example_iterator(self, rank: int, world_size: int) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
-        with open(self._data_path, "r") as f:
+        with open(self._data_path) as f:
             for i, line in enumerate(f):
                 if i % world_size == rank:
-                    res = self._psi_facade.transform(line, to_filter=True)
-                    if res is not None:
-                        _, ids = res
-                        yield from self._slice_examples(ids)
+                    content = json.loads(line)
+                    ids = self._tokenizer.encode(content)
+                    yield from self._slice_examples(ids)

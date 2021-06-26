@@ -1,3 +1,4 @@
+import json
 import os
 
 from omegaconf import DictConfig
@@ -20,13 +21,13 @@ def generate_full_line_dataset(
         config.source_data.val,
         config.source_data.test,
     ]:
-        out_path = os.path.join(out_dir, f"{os.path.splitext(os.path.basename(in_path))[0]}.txt")
+        out_path = os.path.join(out_dir, f"{os.path.splitext(os.path.basename(in_path))[0]}.jsonl")
         with open(in_path, "r") as in_file:
             with open(out_path, "w") as out_file:
                 for json_string in tqdm(in_file, desc=f"Converting data from {in_path}"):
                     nodes = psi_datapoint.json_to_tree(json_string, to_filter=True)
                     if nodes is not None:
-                        out_file.write(f"{repr(LineBreaker.program(nodes))}\n")
+                        out_file.write(f"{json.dumps(LineBreaker.program(nodes))}\n")
 
 
 if __name__ == "__main__":

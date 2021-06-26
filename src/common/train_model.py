@@ -24,12 +24,12 @@ def train(config: DictConfig) -> None:
     )
     os.makedirs(model_checkppint_dir_path, exist_ok=True)
     checkpoint_callback = ModelCheckpoint(
-        filename="{epoch}-{step}-{val_overall_MRR@5:.3f}",
+        filename="{epoch}-{step}",
         dirpath=model_checkppint_dir_path,
         save_top_k=config.training.save_top_k,
         save_last=True,
         verbose=True,
-        monitor="val/overall_MRR@5",
+        monitor="val/MRR@5",
         mode="max",
     )
     if config.training.resume_from_checkpoint is not None:
@@ -52,8 +52,8 @@ def train(config: DictConfig) -> None:
 
     trainer = pl.Trainer(
         # fast_dev_run=True,
-        limit_val_batches=0.05,
-        limit_train_batches=0.05,
+        # limit_val_batches=0.05,
+        # limit_train_batches=0.05,
         max_epochs=config.training.epochs,
         gpus=(config.training.n_gpus if config.training.n_gpus else None),
         auto_select_gpus=(True if config.training.n_gpus > 0 else False),

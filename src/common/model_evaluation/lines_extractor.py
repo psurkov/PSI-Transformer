@@ -98,9 +98,13 @@ def extract_lines(
 
     total_examples = []
     for json_string in tqdm(json_strings, desc=f"Extracting examples ({holdout} with prompt {prompt_part})"):
-        examples = extract_examples(
-            json_string, facade, prompt_part, num_examples=1, filter_doc=True, min_length=5, rng=rng
-        )
+        try:
+            examples = extract_examples(
+                json_string, facade, prompt_part, num_examples=1, filter_doc=True, min_length=5, rng=rng
+            )
+        except (KeyError, IndexError) as e:
+            print(f"Failed to extract examples {e}")
+            continue
         if not examples:
             continue
         total_examples.extend(examples)

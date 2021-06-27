@@ -1,13 +1,13 @@
 save_path: out/flcc
 
 source_data:
-#  train: data/flcc/java-med-out/java-med-out.train.jsonl
-  train: data/flcc/java-small-out.val.jsonl
-#  val: data/flcc/java-med-out/java-med-out.val.jsonl
-  val: data/flcc/java-small-out.val.jsonl
-#  test: data/flcc/java-med-out/java-med-out.test.jsonl
-  test: data/flcc/java-small-out.test.jsonl
-  mock_jsonl: data/flcc/mock-out.train.jsonl
+  train: data/flcc/java-med-out.train.txt
+#  train: data/flcc/java-small-out.val.txt
+  val: data/flcc/java-med-out.val.txt
+#  val: data/flcc/java-small-out.val.txt
+  test: data/flcc/java-med-out.test.txt
+#  test: data/flcc/java-small-out.test.txt
+  mock_jsonl: data/flcc/mock-out.train.txt
 
 tokenizer:
   vocab_size: 16384

@@ -138,6 +138,9 @@ class PSIDatapointFacade:
                     skipped_trees_count += 1
         bar.close()
         print(f"Skipped {int(skipped_trees_count)} trees!")
+
+        orig_nodes_amount = [len(nodes) for nodes in nodes_lists]
+
         # transforming trees
         transformed_nodes_lists = [
             self._apply_transformations(nodes) for nodes in tqdm.tqdm(nodes_lists, desc="Applying transformations...")
@@ -147,9 +150,10 @@ class PSIDatapointFacade:
         transformed_nodes_lists = self._stats_collector.train(transformed_nodes_lists)
         # creating trees
         trees = [Tree(nodes_list, self._stats_collector) for nodes_list in transformed_nodes_lists]
+
         tree_compressed_sizes = [tree.compressed_size for tree in trees]
         compress_ratios = [
-            compressed_size / orig_size for orig_size, compressed_size in zip(nodes_amount_list, tree_compressed_sizes)
+            compressed_size / orig_size for orig_size, compressed_size in zip(orig_nodes_amount, tree_compressed_sizes)
         ]
         print(f"Trees was compressed to " f"{sum(compress_ratios) / len(trees) * 100}% of its size in average")
 

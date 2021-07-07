@@ -1,3 +1,4 @@
+black
 tqdm~=4.60.0
 tokenizers~=0.10.3
 numpy==1.20.1

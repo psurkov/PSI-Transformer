@@ -4,11 +4,7 @@ import os
 from typing import List, Optional
 
 from omegaconf import DictConfig
-from tokenizers import Tokenizer
-from tokenizers.models import BPE
-from tokenizers.pre_tokenizers import Metaspace
-from tokenizers.processors import TemplateProcessing
-from tokenizers.trainers import BpeTrainer
+from youtokentome import BPE
 
 from src.common.utils import run_with_config
 from src.psi.psi_datapoint.stateful.abstract_stateful import Stateful
@@ -21,7 +17,7 @@ class FLCCBPE(Stateful):
         self._vocab_size = vocab_size
         self._min_frequency = min_frequency
         self._dropout = dropout
-        self._bpe_tokenizer: Optional[Tokenizer] = None
+        self._bpe_tokenizer: Optional[BPE] = None
 
     @property
     def vocab_size(self) -> int:
@@ -34,18 +30,22 @@ class FLCCBPE(Stateful):
     def encode(self, content: str) -> List[int]:
         # Add special token in order to use [EOS] for beam search stopping
         lines = content.splitlines(keepends=False)
-        ids_lists = self._bpe_tokenizer.encode_batch(lines, add_special_tokens=True)
-        return list(itertools.chain(*ids_lists))
+        encodings = self._bpe_tokenizer.encode_batch(lines, add_special_tokens=True)
+        return
 
     def decode(self, ids: List[int]) -> str:
-        ids_lists = itertools.groupby(ids, lambda id_: id_ == self.eos_id)
+        ids_lists = [
+            list(id_group)
+            for grouper, id_group in itertools.groupby(ids, lambda id_: id_ == self.eos_id)
+            if not grouper
+        ]
         lines = self._bpe_tokenizer.decode_batch(ids_lists, skip_special_tokens=True)
         return "\n".join(lines)
 
     def save_pretrained(self, path: str) -> None:
         path = os.path.join(path, FLCCBPE._filename)
         os.makedirs(path, exist_ok=True)
-        self._bpe_tokenizer.save(os.path.join(path, "bpe_tokenizer.json"))
+        self._bpe_tokenizer.model.save(path)
         with open(os.path.join(path, "tokenizer_stuff.json"), "w") as f:
             json.dump([self._vocab_size, self._min_frequency, self._dropout], f)
 
@@ -55,7 +55,16 @@ class FLCCBPE(Stateful):
         with open(os.path.join(path, "tokenizer_stuff.json")) as f:
             [vocab_size, min_frequency, dropout] = json.load(f)
         tokenizer = FLCCBPE(vocab_size, min_frequency, dropout)
-        tokenizer._bpe_tokenizer = Tokenizer.from_file(os.path.join(path, "bpe_tokenizer.json"))
+
+        bpe = BPE.read_file(os.path.join(path, "vocab.json"), os.path.join(path, "merges.txt"))
+        bpe_tokenizer = Tokenizer(bpe)
+        bpe_tokenizer.post_processor = TemplateProcessing(
+            single="$A [EOS]",
+            pair="$A [EOS] $B:1 [EOS]:1",
+            special_tokens=[("[EOS]", bpe_tokenizer.token_to_id("[EOS]"))],
+        )
+
+        tokenizer._bpe_tokenizer = bpe_tokenizer
         return tokenizer
 
     @staticmethod
@@ -64,14 +73,15 @@ class FLCCBPE(Stateful):
 
     def train(self, data_path: str) -> None:
         bpe_special_tokens = ["[PAD]", "[UNK]", "[EOS]"]
-        tokenizer = Tokenizer(BPE(dropout=self._dropout if self._dropout else None, unk_token="[UNK]", fuse_unk=True))
+        bpe = BPE(dropout=self._dropout if self._dropout else None, unk_token="[UNK]", fuse_unk=True)
+        tokenizer = Tokenizer(bpe)
         trainer = BpeTrainer(
             vocab_size=self._vocab_size, min_frequency=self._min_frequency, special_tokens=bpe_special_tokens
         )
 
         print("Training tokenizer...")
         with open(data_path) as f:
-            lines = [line for content in f for line in json.loads(content).splitlines(keepends=False)]
+            lines = [line.replace("\r", "").replace("\t", "    ").replace("\v", "") for content in f for line in json.loads(content).splitlines(keepends=False)]
 
         tokenizer.train_from_iterator(lines, trainer)
         tokenizer.post_processor = TemplateProcessing(

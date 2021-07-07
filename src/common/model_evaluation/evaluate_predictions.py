@@ -1,9 +1,11 @@
 import argparse
 import json
+import os
 from typing import List
 
 import editdistance
 import numpy as np
+from rouge import Rouge
 
 from src.common.model_evaluation.produce_predictions import Prediction, TextHypothesis
 
@@ -31,6 +33,19 @@ def edit_similarity(a: str, b: str) -> float:
     return (1 - (dist / max(len(a), len(b)))) * 100
 
 
+def common_prefix(pred: str, true: str) -> float:
+    lcp = os.path.commonprefix([pred, true])
+    return (len(lcp) / len(true)) * 100
+
+
+def rougel(pred: str, true: str) -> float:
+    if pred:
+        rouge = Rouge()
+        [score] = rouge.get_scores(pred, true)
+        return score["rouge-l"]["f"] * 100
+    return 0.0
+
+
 def evaluate(prediction_paths: str, ks: List[int], len_norm_base: float, len_norm_pow: float) -> None:
     for prediction_path in prediction_paths:
         predictions = []
@@ -41,17 +56,27 @@ def evaluate(prediction_paths: str, ks: List[int], len_norm_base: float, len_nor
 
         pred_postprocessor = PredictionPostprocessor(len_norm_base, len_norm_pow)
         for k in ks:
-            scores = []
+            edit_scores = []
+            lcp_scores = []
+            rougel_scores = []
             for prediction in predictions:
-                hyps = pred_postprocessor.get_top_k(prediction, k)
-                score = max(edit_similarity(h.prediction, prediction.target) for h in hyps)
-                scores.append(score)
+                if prediction.target:
+                    hyps = pred_postprocessor.get_top_k(prediction, k)
+                    edit_score = max(edit_similarity(h.prediction, prediction.target) for h in hyps)
+                    lcp_score = max(common_prefix(h.prediction, prediction.target) for h in hyps)
+                    rougel_score = max(rougel(h.prediction, prediction.target) for h in hyps)
+                    edit_scores.append(edit_score)
+                    lcp_scores.append(lcp_score)
+                    rougel_scores.append(rougel_score)
 
-            scores = np.array(scores)
+            edit_scores = np.array(edit_scores)
+            lcp_scores = np.array(lcp_scores)
+            rougel_scores = np.array(rougel_scores)
             print(
-                f"Edit similarity @{k} for {prediction_path}\n"
-                f"len_norm_base: {len_norm_base} len_norm_pow: {len_norm_pow}\n"
-                f"{scores.mean()} +-{scores.std()}"
+                f"{prediction_path} @{k} len_norm_base: {len_norm_base} len_norm_pow: {len_norm_pow}\n"
+                f"Edit: {edit_scores.mean():.2f} +-{edit_scores.std():.2f}\n"
+                f"LCP: {lcp_scores.mean():.2f} +-{lcp_scores.std():.2f}\n"
+                f"ROUGE-L: {rougel_scores.mean():.2f} +-{rougel_scores.std():.2f}\n"
             )
 
 

@@ -1,7 +1,7 @@
 import re
 from typing import List
 
-from src.psi.psi_datapoint.stateless_transformations.abstract_transformation import Transformation
+from src.common.interfaces.abstract_transformation import Transformation
 from src.psi.psi_datapoint.tree_structures.node import Node
 
 _EMPTY_CHILDREN_COMPRESSION = re.compile("|".join(("\\w*_LIST$",)))

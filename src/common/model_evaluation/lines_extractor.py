@@ -54,7 +54,7 @@ def extract_examples(
         tb = facade.get_tree_builder()
         for id_ in facade.get_tree_builder(list(itertools.chain(context_nodes, line_nodes))).ids:
             tb.add_id(id_)
-        whole_context_str = LineBreaker.program(tb.tree.nodes, indent="")
+        whole_context_str = LineBreaker.get_program(tb.tree.nodes, indent="")
 
         leaf_inds = [i for i, node in enumerate(line_nodes) if node.is_leaf]
         cut_ind = leaf_inds[int(prompt_part * len(leaf_inds))]
@@ -65,7 +65,7 @@ def extract_examples(
         tb = facade.get_tree_builder()
         for id_ in ids:
             tb.add_id(id_)
-        context_str = LineBreaker.program(tb.tree.nodes, indent="")
+        context_str = LineBreaker.get_program(tb.tree.nodes, indent="")
 
         target_str = whole_context_str[len(context_str) :]
         examples.append(LineExample(context_str, tb, target_str))

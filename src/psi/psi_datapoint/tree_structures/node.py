@@ -45,13 +45,12 @@ class Node:
     ):
         self._name = name
         self._is_arbitrary = is_arbitrary
-        self._is_leaf = is_leaf
         self._is_visible = True
 
         # Can be None in case of leafs
         # Can be tuple() in case of 0 children
         # Can be non-empty tuple in case of >0 children
-        self._children = None if is_leaf else tuple()
+        self._children: Optional[Tuple["Node", ...]] = None if is_leaf else tuple()
 
     @property
     def name(self) -> str:
@@ -63,7 +62,7 @@ class Node:
 
     @property
     def is_leaf(self) -> bool:
-        return self._is_leaf
+        return self.children is None
 
     @property
     def is_visible(self) -> bool:
@@ -73,10 +72,11 @@ class Node:
         self._is_visible = visible
 
     @property
-    def children(self) -> Optional[Tuple["Node"]]:
+    def children(self) -> Tuple["Node", ...]:
+        assert self._children is not None
         return self._children
 
-    def _set_children(self, children: Tuple["Node"]):
+    def _set_children(self, children: Tuple["Node", ...]):
         assert self._children is not None
         self._children = children
 
@@ -112,8 +112,8 @@ class Node:
     def load_psi_miner_nodes(json_dict: dict) -> Optional[List["Node"]]:
         node_dicts, label = json_dict["AST"], json_dict["label"]
 
-        nodes = []
-        offsets = []
+        nodes: List["Node"] = []
+        offsets: List[int] = []
 
         offset = 0
         for node_dict in node_dicts:
@@ -140,7 +140,7 @@ class Node:
         is_leaf: bool,
         arbitrary_value: bool = False,
     ) -> Tuple[Tuple["Node", ...], int]:
-        children = None
+        children: Optional[Tuple["Node", ...]] = None
 
         if node_value != PSIConstants.EMPTY_VALUE.value:
             assert is_leaf
@@ -151,13 +151,13 @@ class Node:
             if node_value != "":
                 is_arbitrary = bool(_ARBITRARY_NAME_REGEX.search(node_name))
 
-                value_child, _ = Node._load_from_psi_miner_format(
+                value_children, _ = Node._load_from_psi_miner_format(
                     node_name=node_value,
                     node_value=PSIConstants.EMPTY_VALUE.value,
                     is_leaf=True,
                     arbitrary_value=is_arbitrary,
                 )
-                [value_child] = value_child
+                [value_child] = value_children
                 children = (value_child,)
             else:
                 children = tuple()

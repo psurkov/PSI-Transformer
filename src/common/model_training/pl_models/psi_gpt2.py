@@ -22,7 +22,7 @@ class PSIGPT2(GPT2LMHead):
                     top_k=5,
                     shift=True,
                 )
-        return MetricCollection(metrics)
+        return MetricCollection(metrics)  # type: ignore
 
     def _aggregate_single_token_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
         res = dict()
@@ -36,6 +36,11 @@ class PSIGPT2(GPT2LMHead):
         res = dict()
         datamodule: PSIDataModule = self.trainer.datamodule
         arbitrary_mask, static_leaf_mask, non_leaf_mask = datamodule.psi_facade.tokenizer.classify_ids(labels)
+        assert (
+            isinstance(arbitrary_mask, torch.Tensor)
+            and isinstance(static_leaf_mask, torch.Tensor)
+            and isinstance(non_leaf_mask, torch.Tensor)
+        )
 
         res.update(self._update_metrics_with_mask(logits, labels, holdout, "overall", mask=None))
         res.update(self._update_metrics_with_mask(logits, labels, holdout, "nonleaf", mask=non_leaf_mask))
@@ -53,3 +58,11 @@ class PSIGPT2(GPT2LMHead):
         return {
             f"{holdout}/{node_type}_{k}": v for k, v in self._metrics[f"{holdout}/{node_type}"](logits, labels).items()
         }
+
+    def _compute_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
+        res: Dict[str, torch.Tensor] = dict()
+        for node_type in ["overall", "nonleaf", "staticleaf", "bpeleaf"]:
+            res.update(
+                {f"{holdout}/{node_type}_{k}": v for k, v in self._metrics[f"{holdout}/{node_type}"].compute().items()}
+            )
+        return res

@@ -12,13 +12,13 @@ from src.psi.psi_datapoint.tree_structures.tree_builder import TreeBuilder, Chan
 class Hypothesis:
     ids: List[int]
     tree_builder: TreeBuilder
-    score: float
+    log_prob: float
     is_terminated: bool
 
     def get_normalized_score(self, len_norm_base: float = 5.0, len_norm_pow: float = 0.7) -> float:
         hyp_length = len(self.ids)
         norm_factor = ((len_norm_base + hyp_length) / (len_norm_base + 1)) ** len_norm_pow
-        return math.exp(self.score / norm_factor)
+        return math.exp(self.log_prob / norm_factor)
 
 
 class BeamSearch:
@@ -34,16 +34,22 @@ class BeamSearch:
         self._beam_size = beam_size
 
         self._length = 1
-        self._terminated_hypotheses = []
+        self._terminated_hypotheses: List[Hypothesis] = []
 
-        self._scores = None
-        self._hypotheses = None
-        self._sort_mask = None
-        self._row_mask = None
-        self._tree_builders = [tree_builder]
+        self._is_initialized: bool = False
 
-        self._is_initialized = False
-        self._device = None
+        self._scores: torch.Tensor
+        self._hypotheses: torch.Tensor
+        self._row_mask: torch.Tensor
+        self._device: torch.device
+        self._tree_builders: List[TreeBuilder] = [tree_builder]
+
+    def _init_state(self, log_probs: torch.Tensor):
+        self._scores = torch.zeros(1, dtype=log_probs.dtype, device=log_probs.device)
+        self._hypotheses = torch.empty(1, 0, dtype=torch.long, device=log_probs.device)
+        self._row_mask = torch.empty(log_probs.size(1), dtype=torch.bool, device=log_probs.device)
+        self._device = log_probs.device
+        self._is_initialized = True
 
     def step(self, log_probs: torch.Tensor) -> Optional[torch.Tensor]:
         """Take a single search step.
@@ -59,7 +65,6 @@ class BeamSearch:
         """
         if not self._is_initialized:
             self._init_state(log_probs)
-            self._is_initialized = True
         self._step_check(log_probs)
         log_probs = self._preprocess_log_probs(log_probs)
         sort_mask = self._step(log_probs)
@@ -94,13 +99,6 @@ class BeamSearch:
         if self._scores is None:
             return 1
         return self._scores.size(0)
-
-    def _init_state(self, log_probs: torch.Tensor):
-        assert self._scores is None and self._hypotheses is None
-        self._device = log_probs.device
-        self._scores = torch.zeros(1, dtype=log_probs.dtype, device=log_probs.device)
-        self._hypotheses = torch.empty(1, 0, dtype=torch.long, device=log_probs.device)
-        self._row_mask = torch.empty(log_probs.size(1), dtype=torch.bool, device=log_probs.device)
 
     def _step_check(self, log_probs: torch.Tensor) -> None:
         assert log_probs.size() == (
@@ -154,7 +152,7 @@ class BeamSearch:
         self._update_state(samples, sort_mask, sample_scores, tree_builders)
         self._length += 1
 
-        return self._sort_mask
+        return torch.tensor(sort_mask, dtype=torch.long, device=self._device)
 
     def _update_state(
         self,
@@ -164,7 +162,6 @@ class BeamSearch:
         tree_builders: List[TreeBuilder],
     ) -> None:
         self._samples = torch.tensor(samples, dtype=torch.long, device=self._device)
-        self._sort_mask = torch.tensor(sort_mask, dtype=torch.long, device=self._device)
         self._scores = torch.tensor(new_scores, dtype=self._scores.dtype, device=self._device)
         self._tree_builders = tree_builders
 

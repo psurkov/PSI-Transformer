@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Tuple, Optional
 
 import torch
 import torch.nn.functional as F
@@ -17,10 +17,10 @@ class PSIGPT2Wrapper(ModelWrapper):
         self._model = model.eval()
         print(f"Number of parameters: {sum(p.numel() for p in self._model.parameters())}")
 
-        self._mems = None
+        self._mems: Optional[Tuple[Tuple[torch.Tensor, ...], ...]] = None
 
-    def init_state(self, tree_builder: TreeBuilder, num_iterations: int) -> Tuple[torch.Tensor, TreeBuilder]:
-        context_len = self._model.config.n_ctx - num_iterations
+    def init_state(self, tree_builder: TreeBuilder, num_iterations: int) -> Tuple[torch.Tensor, TreeBuilder]:  # type: ignore
+        context_len = self._model.config.n_ctx - num_iterations  # type: ignore
 
         context_ids = tree_builder.ids[-context_len:]
 
@@ -32,10 +32,11 @@ class PSIGPT2Wrapper(ModelWrapper):
         return log_probs, tree_builder
 
     def sort_state(self, sort_mask: torch.Tensor) -> None:
-        self._mems = tuple(tuple(k[sort_mask].contiguous() for k in mem) for mem in self._mems)
+        if self._mems is not None:
+            self._mems = tuple(tuple(k[sort_mask].contiguous() for k in mem) for mem in self._mems)
 
     def get_log_probs(self, data: torch.Tensor) -> torch.Tensor:
-        assert self._mems[0][0].size(2) < self._model.config.n_ctx
+        assert self._mems[0][0].size(2) < self._model.config.n_ctx  # type: ignore
         with torch.no_grad():
             scores, self._mems = self._model(data.unsqueeze(1), self._mems, use_cache=True, return_dict=False)
             log_probs = F.log_softmax(scores.squeeze(1), dim=1)

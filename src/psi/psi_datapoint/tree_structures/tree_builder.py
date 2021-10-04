@@ -2,10 +2,10 @@ import copy
 from enum import Enum
 from typing import List, Set
 
-from src.psi.psi_datapoint.stateful.tokenizer import TreeTokenizer
 from src.psi.psi_datapoint.tree_structures.line_breaker import LineBreaker
 from src.psi.psi_datapoint.tree_structures.node import TreeConstants
 from src.psi.psi_datapoint.tree_structures.tree import Tree
+from src.psi.psi_datapoint.tree_tokenizer import TreeTokenizer
 
 
 class ChangeStatus(Enum):
@@ -24,7 +24,7 @@ class TreeBuilder:
         for node in tree.nodes:
             self._line_breaker(node)
 
-        self._cur_arbitrary_ids = []
+        self._cur_arbitrary_ids: List[int] = []
 
     @property
     def tree(self) -> Tree:
@@ -80,7 +80,7 @@ class TreeBuilder:
             next_suitable_nodes = self._tree.get_next_suitable_nodes()
             if next_suitable_nodes is None:
                 return set()
-            ret = set()
+            ret: Set[int] = set()
             for node_name in next_suitable_nodes:
                 if node_name == TreeConstants.ARBITRARY_REPR.value:
                     ret.update(self._tokenizer.arbitrary_ids)

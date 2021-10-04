@@ -46,7 +46,7 @@ class GPT2LMHead(pl.LightningModule, abc.ABC):
     def _compute_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
         pass
 
-    def forward(
+    def forward(  # type: ignore
         self,
         inputs: torch.LongTensor,
         labels: Optional[torch.LongTensor] = None,
@@ -68,31 +68,31 @@ class GPT2LMHead(pl.LightningModule, abc.ABC):
         else:
             raise ValueError(f"Unsupported model type: {type(self._model)}")
 
-    def training_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
+    def training_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:  # type: ignore
         inputs, labels = batch
         loss, logits = self.forward(inputs, labels)
         return {"loss": loss, "logits": logits, "labels": labels}
 
-    def training_step_end(self, batch_parts_outputs: Dict[str, torch.Tensor]):
+    def training_step_end(self, batch_parts_outputs: Dict[str, torch.Tensor]):  # type: ignore
         losses, logits, labels = (
             batch_parts_outputs["loss"],
             batch_parts_outputs["logits"],
             batch_parts_outputs["labels"],
         )
         self.log_dict(
-            self._calc_single_token_metrics(logits.detach(), labels, "train"), on_step=True, prog_bar=False, logger=True
+            self._update_metrics(logits.detach(), labels, "train"), on_step=True, prog_bar=False, logger=True
         )
         loss = losses.mean()
 
         self.log("train_loss", loss.detach(), on_step=True, prog_bar=True, logger=True)
         return loss
 
-    def validation_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
+    def validation_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:  # type: ignore
         inputs, labels = batch
         [logits] = self.forward(inputs)
         return {"logits": logits, "labels": labels}
 
-    def validation_step_end(self, batch_parts_outputs: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def validation_step_end(self, batch_parts_outputs: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:  # type: ignore
         logits, labels = batch_parts_outputs["logits"], batch_parts_outputs["labels"]
         return self._update_metrics(logits, labels, "val")
 
@@ -103,12 +103,12 @@ class GPT2LMHead(pl.LightningModule, abc.ABC):
             on_epoch=True,
         )
 
-    def test_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:
+    def test_step(self, batch, batch_idx) -> Dict[str, torch.Tensor]:  # type: ignore
         inputs, labels = batch
         [logits] = self.forward(inputs)
         return {"logits": logits, "labels": labels}
 
-    def test_step_end(self, batch_parts_outputs: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def test_step_end(self, batch_parts_outputs: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:  # type: ignore
         logits, labels = batch_parts_outputs["logits"], batch_parts_outputs["labels"]
         return self._update_metrics(logits, labels, "test")
 

@@ -1,16 +1,18 @@
 import argparse
 import functools
+from typing import Callable, Any
 
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
 
-def run_with_config(fn: callable, default_config_path: str = "src/common/configs/config_psi.yaml"):
-    args = argparse.ArgumentParser()
-    args.add_argument("--config", default=default_config_path, type=str, help="Path to YAML config")
-    args = args.parse_args()
+def run_with_config(fn: Callable[[DictConfig], Any], default_config_path: str = "src/common/configs/config_psi.yaml"):
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument("--config", default=default_config_path, type=str, help="Path to YAML config")
+    args = arg_parser.parse_args()
     config = OmegaConf.load(args.config)
+    assert isinstance(config, DictConfig)
 
     fn(config)
 

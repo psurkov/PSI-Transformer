@@ -2,18 +2,18 @@ import difflib
 import json
 import os
 from json import JSONDecodeError
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Dict
 
 import numpy as np
 import tqdm
 from omegaconf import OmegaConf, DictConfig
 
-from src.psi.psi_datapoint.stateful.stats_collector import StatsCollector
-from src.psi.psi_datapoint.stateful.tokenizer import TreeTokenizer
-from src.psi.psi_datapoint.stateless_transformations.children_amount_normalization import ChildrenAmountNormalizer
+from src.psi.psi_datapoint.stats_collector import StatsCollector
+from src.psi.psi_datapoint.transformations.children_amount_normalization import ChildrenAmountNormalizer
 from src.psi.psi_datapoint.tree_structures.node import Node, PSIConstants
 from src.psi.psi_datapoint.tree_structures.tree import Tree
 from src.psi.psi_datapoint.tree_structures.tree_builder import TreeBuilder
+from src.psi.psi_datapoint.tree_tokenizer import TreeTokenizer
 
 TRANSFORMATIONS = [  # Order in the dict must be preserved
     ("children_amount_normalization", ChildrenAmountNormalizer),
@@ -26,8 +26,13 @@ class PSIDatapointFacade:
 
     def __init__(self, config: DictConfig, diff_warning: bool = True):
         self._config = config
-
         self._overwrite = self._config.psi_pretraining.overwrite
+
+        self._trained: bool = False
+        self._stats_collector: StatsCollector
+        self._tokenizer: TreeTokenizer
+        self._stats: Dict
+
         pretrained_path = self._config.save_path
         if PSIDatapointFacade.pretrained_exists(pretrained_path):
             self._trained = True
@@ -36,19 +41,14 @@ class PSIDatapointFacade:
             with open(os.path.join(pretrained_path, PSIDatapointFacade._stats_filename)) as f:
                 self._stats = json.load(f)
 
-            config = OmegaConf.load(os.path.join(pretrained_path, PSIDatapointFacade._config_filename))
-            if diff_warning and self._config != config:
+            new_config = OmegaConf.load(os.path.join(pretrained_path, PSIDatapointFacade._config_filename))
+            if diff_warning and self._config != new_config:
                 print(f"WARNING:\nLoaded config doesn't match current config! Diff:")
                 for text in difflib.unified_diff(
-                    OmegaConf.to_yaml(config).split("\n"), OmegaConf.to_yaml(self._config).split("\n")
+                    OmegaConf.to_yaml(new_config).split("\n"), OmegaConf.to_yaml(self._config).split("\n")
                 ):
                     if text[:3] not in ("+++", "---", "@@ "):
                         print(f"    {text}")
-        else:
-            self._trained = False
-            self._stats_collector = None
-            self._tokenizer = None
-            self._stats = {}
 
     def _save_pretrained(self, path: str) -> None:
         stats_path = os.path.join(path, PSIDatapointFacade._stats_filename)
@@ -208,10 +208,10 @@ class PSIDatapointFacade:
             return None
 
         transformed_nodes = self._apply_transformations(nodes)
-        transformed_nodes = self._stats_collector.transform(transformed_nodes)
-        if transformed_nodes is None:
+        compressed_nodes = self._stats_collector.transform(transformed_nodes)
+        if compressed_nodes is None:
             return None
-        tree = Tree(transformed_nodes, self._stats_collector)
+        tree = Tree(compressed_nodes, self._stats_collector)
         ids = self._tokenizer.encode_tree(tree)
         return tree, ids
 
@@ -222,7 +222,7 @@ class PSIDatapointFacade:
         elif isinstance(nodes_or_tree, list):
             return TreeBuilder(Tree(nodes_or_tree, self._stats_collector), self._tokenizer)
         elif isinstance(nodes_or_tree, Tree):
-            TreeBuilder(nodes_or_tree, self._tokenizer)
+            return TreeBuilder(nodes_or_tree, self._tokenizer)
         else:
             raise TypeError(f"Node or tree must be Tree, List[Node] or None. But got {type(nodes_or_tree)}")
 

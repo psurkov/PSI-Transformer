@@ -69,14 +69,14 @@ def evaluate(prediction_paths: str, ks: List[int], len_norm_base: float, len_nor
                     lcp_scores.append(lcp_score)
                     rougel_scores.append(rougel_score)
 
-            edit_scores = np.array(edit_scores)
-            lcp_scores = np.array(lcp_scores)
-            rougel_scores = np.array(rougel_scores)
+            edit_scores_np = np.array(edit_scores)
+            lcp_scores_np = np.array(lcp_scores)
+            rougel_scores_np = np.array(rougel_scores)
             print(
                 f"{prediction_path} @{k} len_norm_base: {len_norm_base} len_norm_pow: {len_norm_pow}\n"
-                f"Edit: {edit_scores.mean():.2f} +-{edit_scores.std():.2f}\n"
-                f"LCP: {lcp_scores.mean():.2f} +-{lcp_scores.std():.2f}\n"
-                f"ROUGE-L: {rougel_scores.mean():.2f} +-{rougel_scores.std():.2f}\n"
+                f"Edit: {edit_scores_np.mean():.2f} +-{edit_scores_np.std():.2f}\n"
+                f"LCP: {lcp_scores_np.mean():.2f} +-{lcp_scores_np.std():.2f}\n"
+                f"ROUGE-L: {rougel_scores_np.mean():.2f} +-{rougel_scores_np.std():.2f}\n"
             )
 
 

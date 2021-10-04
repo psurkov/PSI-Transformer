@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Any
 
 import pytorch_lightning as pl
 import torch
@@ -13,20 +13,20 @@ class PSIDataModule(pl.LightningDataModule):
     def __init__(self, config: DictConfig):
         super().__init__()
         self._config = config
-        self._psi_facade: Optional[PSIDatapointFacade] = None
+        self._psi_facade: PSIDatapointFacade = PSIDatapointFacade(config)
+        assert self._psi_facade.is_trained
 
     @property
-    def psi_facade(self) -> Optional[PSIDatapointFacade]:
+    def psi_facade(self) -> PSIDatapointFacade:
         return self._psi_facade
+
+    def setup(self, stage: Optional[str] = None):
+        pass
 
     def prepare_data(self):
         psi_facade = PSIDatapointFacade(self._config)
         if not psi_facade.is_trained:
             psi_facade.train()
-
-    def setup(self, stage: Optional[str] = None) -> None:
-        self._psi_facade = PSIDatapointFacade(self._config)
-        assert self._psi_facade.is_trained
 
     def _collate_fn(self, tensors: List[Tuple[torch.Tensor, torch.Tensor]]):
         inputs, labels = zip(*tensors)
@@ -35,7 +35,7 @@ class PSIDataModule(pl.LightningDataModule):
             torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=self._config.model.labels_pad),
         )
 
-    def train_dataloader(self) -> DataLoader:
+    def train_dataloader(self) -> DataLoader:  # type: ignore
         dataset = PSIDataset(self._config, "train", self._config.training.local_rank, self._config.training.world_size)
         return DataLoader(
             dataset,
@@ -46,7 +46,7 @@ class PSIDataModule(pl.LightningDataModule):
             drop_last=True,
         )
 
-    def val_dataloader(self) -> DataLoader:
+    def val_dataloader(self) -> DataLoader:  # type: ignore
         dataset = PSIDataset(self._config, "val", self._config.training.local_rank, self._config.training.world_size)
         return DataLoader(
             dataset,
@@ -57,7 +57,7 @@ class PSIDataModule(pl.LightningDataModule):
             drop_last=True,
         )
 
-    def test_dataloader(self) -> DataLoader:
+    def test_dataloader(self) -> DataLoader:  # type: ignore
         dataset = PSIDataset(self._config, "test", self._config.training.local_rank, self._config.training.world_size)
         return DataLoader(
             dataset,
@@ -67,3 +67,6 @@ class PSIDataModule(pl.LightningDataModule):
             collate_fn=self._collate_fn,
             drop_last=True,
         )
+
+    def transfer_batch_to_device(self, batch: Any, device: torch.device) -> Any:  # type: ignore
+        pass

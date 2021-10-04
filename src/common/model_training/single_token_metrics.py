@@ -17,8 +17,8 @@ class AccuracyMRR(Metric):
         self._ignore_index = ignore_index
         self._shift = shift
 
-    def update(
-        self, scores: torch.Tensor, labels: torch.Tensor, mask: Optional[torch.BoolTensor] = None
+    def update(  # type: ignore
+        self, scores: torch.Tensor, labels: torch.Tensor, mask: Optional[torch.Tensor] = None
     ) -> Dict[str, torch.Tensor]:
         """Calculates accuracy@1, accuracy@top_k and MRR@top_k given scores (softmax or logits) and ground truth labels.
 
@@ -63,7 +63,7 @@ class AccuracyMRR(Metric):
         self.correct_acc_1 += acc_top_1_sum
         self.correct_acc_k += acc_top_k_sum
         self.correct_mrr_k += mrr_top_k_sum
-        self.total += total_size
+        self.total += total_size  # type: ignore
 
         return {
             "acc@1": acc_top_1_sum,

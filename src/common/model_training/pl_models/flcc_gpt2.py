@@ -20,11 +20,9 @@ class FLCCGPT2(GPT2LMHead):
                 top_k=5,
                 shift=True,
             )
-        return MetricCollection(metrics)
+        return MetricCollection(metrics)  # type: ignore
 
-    def _update_metrics(
-        self, logits: torch.Tensor, labels: torch.Tensor, holdout: str
-    ) -> Dict[str, torch.Tensor]:
+    def _update_metrics(self, logits: torch.Tensor, labels: torch.Tensor, holdout: str) -> Dict[str, torch.Tensor]:
         return self._metrics[holdout](logits, labels).items()
 
     def _aggregate_single_token_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:

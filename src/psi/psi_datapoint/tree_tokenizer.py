@@ -1,7 +1,7 @@
 import itertools
 import json
 import os
-from typing import List, Optional, Iterable, Union, Tuple
+from typing import List, Optional, Iterable, Union, Tuple, Dict
 
 import torch
 from tokenizers import Tokenizer
@@ -11,7 +11,7 @@ from tokenizers.processors import TemplateProcessing
 from tokenizers.trainers import BpeTrainer
 import tqdm
 
-from src.psi.psi_datapoint.stateful.abstract_stateful import Stateful
+from src.common.interfaces.abstract_stateful import Stateful
 from src.psi.psi_datapoint.tree_structures.tree import Tree
 
 
@@ -25,16 +25,16 @@ class TreeTokenizer(Stateful):
         min_frequency: int,
         dropout: Optional[float],
     ) -> None:
-        self._vocab_size = vocab_size
-        self._min_frequency = min_frequency
-        self._dropout = dropout if dropout is not None and 0.0 < dropout < 1.0 else None
+        self._vocab_size: int = vocab_size
+        self._min_frequency: int = min_frequency
+        self._dropout: Optional[float] = dropout if dropout is not None and 0.0 < dropout < 1.0 else None
 
-        self._bpe_tokenizer = None
-        self._special_vocab = None
-        self._special_vocab_inversed = None
-        self._arbitrary_end_ind = None
-        self._non_leaf_start_ind = None
-        self._eov_id = None
+        self._bpe_tokenizer: Tokenizer
+        self._special_vocab: Dict[str, int]
+        self._special_vocab_inversed: Dict[int, str]
+        self._arbitrary_end_ind: int
+        self._non_leaf_start_ind: int
+        self._eov_id: int
 
     def save_pretrained(self, path: str) -> None:
         path = os.path.join(path, TreeTokenizer._filename)
@@ -115,16 +115,13 @@ class TreeTokenizer(Stateful):
         return self._bpe_tokenizer.decode(ids).replace(" ", "").replace("▁", " ")[1:]
 
     def classify_ids(
-        self, ids: Union[int, List[int], torch.Tensor]
+        self, ids: Union[int, torch.Tensor]
     ) -> Union[
         Tuple[bool, bool, bool],
-        Tuple[List[bool], List[bool], List[bool]],
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
     ]:
         """Returns 3 bools: is_arbitrary, is_non_arbitrary_leaf, is_internal_node"""
-        if isinstance(ids, list):
-            zip(*(self.classify_ids(id_) for id_ in ids))
-        elif isinstance(ids, int):
+        if isinstance(ids, int):
             return (
                 ids <= self._arbitrary_end_ind,
                 self._arbitrary_end_ind < ids < self._non_leaf_start_ind,
@@ -136,6 +133,8 @@ class TreeTokenizer(Stateful):
                 torch.logical_and(self._arbitrary_end_ind < ids, ids < self._non_leaf_start_ind),
                 self._non_leaf_start_ind <= ids,
             )
+        else:
+            raise TypeError(str(type(ids)))
 
     def train(self, trees: List[Tree]) -> None:
         non_leaf_tokens = list(

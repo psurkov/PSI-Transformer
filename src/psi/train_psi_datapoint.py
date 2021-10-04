@@ -47,14 +47,14 @@ def test_trees(jsonl_path: str, tree_facade: PSIDatapointFacade, verbose: bool) 
                     break
 
             if verbose:
-                print(tree.tree_representation)
+                print(tree.nodes[0].tree_representation)
                 orig_nodes = tree_facade.inverse_transform(tree)
                 built_nodes = tree_facade.inverse_transform(tree_builder.tree)
 
-                if LineBreaker.program(built_nodes) != LineBreaker.program(orig_nodes):
+                if LineBreaker.get_program(built_nodes) != LineBreaker.get_program(orig_nodes):
                     print(f"Diff between mock (after transformations) and (after tokenization and detokenization)")
                     for text in difflib.unified_diff(
-                        LineBreaker.program(built_nodes).split("\n"), LineBreaker.program(orig_nodes).split("\n")
+                        LineBreaker.get_program(built_nodes).split("\n"), LineBreaker.get_program(orig_nodes).split("\n")
                     ):
                         if text[:3] not in ("+++", "---", "@@ "):
                             print(text)

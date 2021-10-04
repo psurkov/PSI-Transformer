@@ -1,6 +1,6 @@
 from typing import List, Optional, Set
 
-from src.psi.psi_datapoint.stateful.stats_collector import StatsCollector
+from src.psi.psi_datapoint.stats_collector import StatsCollector
 from src.psi.psi_datapoint.tree_structures.node import Node, TreeConstants
 
 
@@ -76,7 +76,7 @@ class Tree:
         return added_nodes
 
     def complete_compressed_nodes(self) -> List[Node]:
-        completed_nodes = []
+        completed_nodes: List[Node] = []
         while True:
             parent_with_next_child = self._get_node_with_next_child()
             if parent_with_next_child is None:

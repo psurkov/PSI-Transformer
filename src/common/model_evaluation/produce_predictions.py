@@ -77,12 +77,12 @@ def predict(
 
                 predictions = []
                 for hyp in itertools.chain(terminated_hyps, current_hyps):
-                    whole_program = LineBreaker.program(hyp.tree_builder.tree.nodes, indent="")
+                    whole_program = LineBreaker.get_program(hyp.tree_builder.tree.nodes, indent="")
                     context, pred = (
                         whole_program[: len(line_example.context_str)],
                         whole_program[len(line_example.context_str) :],
                     )
-                    predictions.append(TextHypothesis(pred, len(hyp.ids), hyp.score, hyp.is_terminated))
+                    predictions.append(TextHypothesis(pred, len(hyp.ids), hyp.log_prob, hyp.is_terminated))
                 eval_res = Prediction(context, line_example.target_str, predictions)
                 out.write(f"{json.dumps(dataclasses.asdict(eval_res))}\n")
 

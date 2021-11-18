@@ -27,5 +27,5 @@ class FLCCGPT2(GPT2LMHead):
     ) -> Dict[str, torch.Tensor]:
         return self._metrics[holdout](logits, labels).items()
 
-    def _aggregate_single_token_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
+    def _compute_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
         return self._metrics[holdout].compute().items()

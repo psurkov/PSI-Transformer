@@ -80,7 +80,7 @@ class GPT2LMHead(pl.LightningModule, abc.ABC):
             batch_parts_outputs["labels"],
         )
         self.log_dict(
-            self._calc_single_token_metrics(logits.detach(), labels, "train"), on_step=True, prog_bar=False, logger=True
+            self._update_metrics(logits.detach(), labels, "train"), on_step=True, prog_bar=False, logger=True
         )
         loss = losses.mean()
 

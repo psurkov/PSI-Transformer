@@ -24,7 +24,7 @@ class PSIGPT2(GPT2LMHead):
                 )
         return MetricCollection(metrics)
 
-    def _aggregate_single_token_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
+    def _compute_metrics(self, holdout: str) -> Dict[str, torch.Tensor]:
         res = dict()
         for node_type in ["overall", "bpeleaf", "staticleaf", "nonleaf"]:
             res.update(

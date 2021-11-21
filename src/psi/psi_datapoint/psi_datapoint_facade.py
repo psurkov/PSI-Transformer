@@ -222,7 +222,7 @@ class PSIDatapointFacade:
         elif isinstance(nodes_or_tree, list):
             return TreeBuilder(Tree(nodes_or_tree, self._stats_collector), self._tokenizer)
         elif isinstance(nodes_or_tree, Tree):
-            TreeBuilder(nodes_or_tree, self._tokenizer)
+            return TreeBuilder(nodes_or_tree, self._tokenizer)
         else:
             raise TypeError(f"Node or tree must be Tree, List[Node] or None. But got {type(nodes_or_tree)}")
 

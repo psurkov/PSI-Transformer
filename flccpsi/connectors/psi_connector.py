@@ -39,7 +39,7 @@ class PSIConnector(Connector):
 
         all_hyps = terminated_hyps if settings.only_full_lines else terminated_hyps + current_hyps
         selected_hyps = sorted(all_hyps, key=lambda h: h.get_normalized_score(), reverse=True)[:10]
-        return [LineBreaker.program(hyp.tree_builder.tree.nodes, indent="") for hyp in selected_hyps]
+        return [(LineBreaker.program(hyp.tree_builder.tree.nodes, indent=""), hyp.score) for hyp in selected_hyps]
 
     def cancel(self):
         torch.cuda.empty_cache()

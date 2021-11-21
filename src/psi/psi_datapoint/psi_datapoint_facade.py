@@ -31,7 +31,7 @@ class PSIDatapointFacade:
         pretrained_path = self._config.save_path
         if PSIDatapointFacade.pretrained_exists(pretrained_path):
             self._trained = True
-            self._stats_collector = StatsCollector.from_pretrained(pretrained_path)
+            self._stats_collector = StatsCollector.from_pretrained(pretrained_path, config.inference_mode)
             self._tokenizer = TreeTokenizer.from_pretrained(pretrained_path)
             with open(os.path.join(pretrained_path, PSIDatapointFacade._stats_filename)) as f:
                 self._stats = json.load(f)
@@ -222,7 +222,7 @@ class PSIDatapointFacade:
         elif isinstance(nodes_or_tree, list):
             return TreeBuilder(Tree(nodes_or_tree, self._stats_collector), self._tokenizer)
         elif isinstance(nodes_or_tree, Tree):
-            TreeBuilder(nodes_or_tree, self._tokenizer)
+            return TreeBuilder(nodes_or_tree, self._tokenizer)
         else:
             raise TypeError(f"Node or tree must be Tree, List[Node] or None. But got {type(nodes_or_tree)}")
 

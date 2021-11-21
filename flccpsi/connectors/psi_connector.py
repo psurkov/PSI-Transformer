@@ -1,4 +1,5 @@
 import glob
+import logging
 import os
 from typing import Tuple
 
@@ -13,6 +14,8 @@ from src.common.model_training.pl_models.psi_gpt2 import PSIGPT2
 from src.psi.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
 from src.psi.psi_datapoint.tree_structures.line_breaker import LineBreaker
 
+logger = logging.getLogger(__name__)
+
 
 class PSIConnector(Connector):
     def __init__(self, path: str):
@@ -22,6 +25,8 @@ class PSIConnector(Connector):
 
         config = OmegaConf.load(config_path)
         config.save_path = path
+        config.inference_mode = True
+
         self._facade = PSIDatapointFacade(config, diff_warning=False)
         model = PSIGPT2.load_from_checkpoint(
             pl_path, map_location=device, config=config, actual_vocab_size=self._facade.tokenizer.vocab_size
@@ -30,6 +35,7 @@ class PSIConnector(Connector):
 
     def get_suggestions(self, prime: str, filename: str, language: str, settings: GenerationSettings):
         tree, ids = self._facade.transform(prime)
+        print(tree.nodes[0].tree_representation)
         tree_builder = self._facade.get_tree_builder(tree)
 
         sequence_generator = SequenceGenerator(self._model_wrapper, settings.num_iterations, settings.beam_size)
@@ -56,11 +62,13 @@ class PSIConnector(Connector):
 if __name__ == "__main__":
 
     def main():
-        connector = PSIConnector("models/gpt2-psi-java-med-882-best/")
+        connector = PSIConnector("models/gpt2-psi-java-med-dummy-888/")
         json_string = """{"label":"","AST":[{"node":"java.FILE","children":[1],"token":"<EMPTY>"},{"node":"PACKAGE_STATEMENT","children":[2],"token":"<EMPTY>"},{"node":"PACKAGE_KEYWORD","token":"package"}]}"""
-        sugggestions = connector.get_suggestions(
+        suggestions = connector.get_suggestions(
             prime=json_string, filename="", language="", settings=GenerationSettings(num_iterations=30)
         )
-        print(sugggestions)
+        print(
+            "\n".join(suggestions)
+        )
 
     main()

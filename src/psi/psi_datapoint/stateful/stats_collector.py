@@ -11,7 +11,7 @@ from src.psi.psi_datapoint.tree_structures.node import Node, TreeConstants
 class StatsCollector(Stateful):
     _filename = "psi/tree_stats_collector.json"
 
-    def __init__(self):
+    def __init__(self, inference_mode: bool):
         # Set: first nodes' name
         self._first_node_names: Optional[Set[str]] = None
         # Dict: fixed length node name -> sets of occurred child names for each position
@@ -24,6 +24,7 @@ class StatsCollector(Stateful):
         self._non_arbitrary_leafs: Optional[Set[str]] = None
 
         self._is_trained: bool = False
+        self._inference_mode = inference_mode
 
     def save_pretrained(self, path: str) -> None:
         path = os.path.join(path, StatsCollector._filename)
@@ -59,9 +60,9 @@ class StatsCollector(Stateful):
             )
 
     @staticmethod
-    def from_pretrained(path: str) -> "StatsCollector":
+    def from_pretrained(path: str, inference_mode: bool) -> "StatsCollector":
         path = os.path.join(path, StatsCollector._filename)
-        stats = StatsCollector()
+        stats = StatsCollector(inference_mode=inference_mode)
         with open(path) as f:
             [
                 first_node_names,
@@ -159,8 +160,20 @@ class StatsCollector(Stateful):
             return None
 
     def _set_arbitrary_children_amount(self, nodes: List[Node]) -> List[Node]:
+        incomplete_nodes = set()
+        if self._inference_mode:
+            right_node = nodes[0]
+            incomplete_nodes.add(id(right_node))
+            while not right_node.is_leaf:
+                right_node = right_node.children[-1]
+                incomplete_nodes.add(id(right_node))
+
         for node in nodes:
-            if not node.is_leaf and not self.has_static_children_amount(node.name):
+            if (
+                not node.is_leaf
+                and not self.has_static_children_amount(node.name)
+                and id(node) not in incomplete_nodes
+            ):
                 end_of_children_node = Node(
                     TreeConstants.END_OF_CHILDREN.value,
                     is_arbitrary=False,

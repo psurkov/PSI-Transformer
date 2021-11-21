@@ -8,7 +8,7 @@ class Stateful(ABC):
 
     @staticmethod
     @abstractmethod
-    def from_pretrained(path: str) -> "Stateful":
+    def from_pretrained(path: str, inference_mode: bool) -> "Stateful":
         pass
 
     @staticmethod

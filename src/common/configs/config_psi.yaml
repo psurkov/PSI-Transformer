@@ -1,4 +1,5 @@
 save_path: out/
+inference_mode: False
 
 source_data:
   train: data/psi/java-med-out/java-med-out.train.jsonl

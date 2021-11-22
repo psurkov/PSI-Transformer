@@ -37,6 +37,7 @@ class PSIConnector(Connector):
         tree, ids = self._facade.transform(prime)
         print(tree.nodes[0].tree_representation)
         tree_builder = self._facade.get_tree_builder(tree)
+        start_node_id = len(tree.nodes)
 
         sequence_generator = SequenceGenerator(self._model_wrapper, settings.num_iterations, settings.beam_size)
         terminated_hyps, current_hyps = sequence_generator.search_sequence(
@@ -44,13 +45,13 @@ class PSIConnector(Connector):
         )
 
         all_hyps = terminated_hyps if settings.only_full_lines else terminated_hyps + current_hyps
-        selected_hyps = sorted(all_hyps, key=lambda h: h.get_normalized_score(), reverse=True)[:10]
+        scores = [h.get_normalized_score() for h in all_hyps]
+
+        selected_hyps = [
+            (s, h) for s, h in sorted(zip(scores, all_hyps), key=lambda sh: sh[0], reverse=True) if s > 1e-2
+        ]
         return [
-            (
-                LineBreaker.program(hyp.tree_builder.tree.nodes, indent=""),
-                hyp.get_normalized_score(settings.len_norm_base, settings.len_norm_pow),
-            )
-            for hyp in selected_hyps
+            (LineBreaker.program(h.tree_builder.tree.nodes[start_node_id:], indent=""), s) for s, h in selected_hyps
         ]
 
     def cancel(self):
@@ -68,7 +69,7 @@ class PSIConnector(Connector):
 if __name__ == "__main__":
 
     def main():
-        connector = PSIConnector("models/gpt2-psi-java-med-dummy-888/")
+        connector = PSIConnector("models/gpt2-psi-94/")
         json_string = """{"label":"","AST":[{"node":"java.FILE","children":[1],"token":"<EMPTY>"},{"node":"PACKAGE_STATEMENT","children":[2],"token":"<EMPTY>"},{"node":"PACKAGE_KEYWORD","token":"package"}]}"""
         suggestions = connector.get_suggestions(
             prime=json_string, filename="", language="", settings=GenerationSettings(num_iterations=30)

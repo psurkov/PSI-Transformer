@@ -12,7 +12,7 @@ class GenerationSettings:
     diversity_strength: int = 0.0
     group_top_n: int = 10
     only_full_lines: bool = False
-    len_norm_base: float = 2.0
+    len_norm_base: float = 5.0
     len_norm_pow: float = 0.7
 
     min_prefix_dist: float = 0.2

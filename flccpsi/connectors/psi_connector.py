@@ -45,7 +45,13 @@ class PSIConnector(Connector):
 
         all_hyps = terminated_hyps if settings.only_full_lines else terminated_hyps + current_hyps
         selected_hyps = sorted(all_hyps, key=lambda h: h.get_normalized_score(), reverse=True)[:10]
-        return [(LineBreaker.program(hyp.tree_builder.tree.nodes, indent=""), hyp.score) for hyp in selected_hyps]
+        return [
+            (
+                LineBreaker.program(hyp.tree_builder.tree.nodes, indent=""),
+                hyp.get_normalized_score(settings.len_norm_base, settings.len_norm_pow),
+            )
+            for hyp in selected_hyps
+        ]
 
     def cancel(self):
         torch.cuda.empty_cache()
@@ -67,8 +73,6 @@ if __name__ == "__main__":
         suggestions = connector.get_suggestions(
             prime=json_string, filename="", language="", settings=GenerationSettings(num_iterations=30)
         )
-        print(
-            "\n".join(suggestions)
-        )
+        print("\n".join(f"{repr(s[0])} --- {s[1]}" for s in suggestions))
 
     main()

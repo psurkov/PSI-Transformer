@@ -2,6 +2,9 @@ import os
 
 import setuptools
 
+with open('requirements.txt') as f:
+    install_requires = f.read().splitlines()
+
 
 def select_all_folders(root):
     if root is None:
@@ -30,6 +33,7 @@ setuptools.setup(
     description="Full Line Code generation via beam search of PSI prediction models",
     long_description=long_description,
     long_description_content_type="text/markdown",
+    install_requires=install_requires,
     url="https://github.com/SokolovYaroslav/PSI-Transformer",
     packages=select_all_folders("flccpsi") + select_all_folders("flccpsisrc"),
     nclude_package_data=True,

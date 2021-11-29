@@ -31,7 +31,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/SokolovYaroslav/PSI-Transformer",
-    packages=select_all_folders("flccpsi") + select_all_folders("src"),
+    packages=select_all_folders("flccpsi") + select_all_folders("flccpsisrc"),
     nclude_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",

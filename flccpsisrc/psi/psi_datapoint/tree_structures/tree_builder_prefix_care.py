@@ -2,6 +2,7 @@ import copy
 from typing import List, Tuple
 
 from flccpsisrc.psi.psi_datapoint.stateful.tokenizer import TreeTokenizer
+from flccpsisrc.psi.psi_datapoint.token_utils import match_tokens, cut_matched_tokens
 from flccpsisrc.psi.psi_datapoint.tree_structures.line_breaker import LineBreaker
 from flccpsisrc.psi.psi_datapoint.tree_structures.node import Node
 from flccpsisrc.psi.psi_datapoint.tree_structures.tree import Tree
@@ -20,7 +21,7 @@ class TreeBuilderPrefixCare(TreeBuilder):
         for id_ in ids:
             _, nodes = super().add_id(id_, dry_run=True)
             tokens = LineBreaker.node_to_code(nodes)
-            fully_matched, next_len = self._match_prefix(tokens)
+            fully_matched, next_len = match_tokens(tokens, self._remaining_prefix)
             if fully_matched != -1:
                 filtered_ids.append(id_)
         return filtered_ids
@@ -30,11 +31,7 @@ class TreeBuilderPrefixCare(TreeBuilder):
             return super().add_id(id_, dry_run=dry_run)
         change_status, nodes = super().add_id(id_, dry_run=dry_run)
         tokens = LineBreaker.node_to_code(nodes)
-        fully_matched, next_len = self._match_prefix(tokens)
-        assert fully_matched != -1
-        self._remaining_prefix = self._remaining_prefix[fully_matched:]
-        if next_len > 0:
-            self._remaining_prefix[0] = self._remaining_prefix[0][next_len:]
+        _, self._remaining_prefix = cut_matched_tokens(tokens, self._remaining_prefix)
         return change_status, nodes
 
     def copy(self) -> "TreeBuilderPrefixCare":
@@ -44,20 +41,3 @@ class TreeBuilderPrefixCare(TreeBuilder):
         tree_builder = TreeBuilderPrefixCare(new_tree, self._tokenizer, new_remaining_prefix)
         tree_builder._cur_arbitrary_ids = copy.copy(self._cur_arbitrary_ids)
         return tree_builder
-
-    def _match_prefix(self, tokens: List[str]) -> Tuple[int, int]:
-        """
-        :return: (fully matched tokens, matched length of next token) or (-1, -1) if doesn't match
-        """
-        fully = 0
-        for pref_token, token in zip(self._remaining_prefix, tokens):
-            if pref_token != token:
-                min_len = min(len(pref_token), len(token))
-                if pref_token[:min_len] != token[:min_len]:
-                    return -1, -1
-                if len(pref_token) <= len(token):
-                    return fully + 1, 0
-                else:
-                    return fully, len(token)
-            fully += 1
-        return fully, 0

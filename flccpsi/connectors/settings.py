@@ -1,6 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from typing import Tuple
+from typing import Tuple, List
 
 
 @dataclass
@@ -18,3 +18,5 @@ class GenerationSettings:
     min_prefix_dist: float = 0.2
     min_edit_dist: float = 0.0
     keep_kinds: Tuple[str, ...] = ("short", "prob")  # Also "long" is available
+
+    rollback_prefix: List[str] = field(default_factory=list)

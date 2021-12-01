@@ -1,10 +1,10 @@
 import copy
 from enum import Enum
-from typing import List, Set
+from typing import List, Set, Tuple
 
 from flccpsisrc.psi.psi_datapoint.stateful.tokenizer import TreeTokenizer
 from flccpsisrc.psi.psi_datapoint.tree_structures.line_breaker import LineBreaker
-from flccpsisrc.psi.psi_datapoint.tree_structures.node import TreeConstants
+from flccpsisrc.psi.psi_datapoint.tree_structures.node import TreeConstants, Node
 from flccpsisrc.psi.psi_datapoint.tree_structures.tree import Tree
 
 
@@ -41,19 +41,21 @@ class TreeBuilder:
         tree_builder._cur_arbitrary_ids = copy.copy(self._cur_arbitrary_ids)
         return tree_builder
 
-    def add_id(self, id_: int) -> ChangeStatus:
+    def add_id(self, id_: int, dry_run: bool = False) -> Tuple[ChangeStatus, List[Node]]:
         is_arbitrary, _, _ = self._tokenizer.classify_ids(id_)
 
         added_nodes = []
         if id_ == self._tokenizer.eov_id:
             token = self._tokenizer.decode_arbitrary_string(self._cur_arbitrary_ids)
-            self._cur_arbitrary_ids = []
-            added_nodes.extend(self._tree.add_node(token, is_arbitrary=True))
+            if not dry_run:
+                self._cur_arbitrary_ids = []
+            added_nodes.extend(self._tree.add_node(token, is_arbitrary=True, dry_run=dry_run))
         elif is_arbitrary:
-            self._cur_arbitrary_ids.append(id_)
+            if not dry_run:
+                self._cur_arbitrary_ids.append(id_)
         else:
             token = self._tokenizer.decode(id_)
-            added_nodes.extend(self._tree.add_node(token, is_arbitrary=False))
+            added_nodes.extend(self._tree.add_node(token, is_arbitrary=False, dry_run=dry_run))
 
         added_token = False
         added_new_line = False
@@ -65,11 +67,11 @@ class TreeBuilder:
                 added_new_line = True
 
         if added_new_line:
-            return ChangeStatus.END_LINE
+            return ChangeStatus.END_LINE, added_nodes
         elif added_token:
-            return ChangeStatus.END_TOKEN
+            return ChangeStatus.END_TOKEN, added_nodes
         else:
-            return ChangeStatus.NO_CHANGE
+            return ChangeStatus.NO_CHANGE, added_nodes
 
     def get_next_possible_ids(self) -> Set[int]:
         if self._cur_arbitrary_ids:

@@ -95,7 +95,11 @@ class LineBreaker:
         return [
             f"{indent * indent_level}"
             + delimeter.join(
-                node.name for node in nodes_line if node.is_leaf and node.name != TreeConstants.END_OF_CHILDREN.value
+                LineBreaker.node_to_code(nodes_line)
             )
             for indent_level, nodes_line in nodes_lines
         ], nodes_lines_list
+
+    @staticmethod
+    def node_to_code(nodes: List[Node]) -> List[str]:
+        return [node.name for node in nodes if node.is_leaf and node.name != TreeConstants.END_OF_CHILDREN.value]

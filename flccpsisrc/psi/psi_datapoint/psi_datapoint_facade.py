@@ -14,6 +14,7 @@ from flccpsisrc.psi.psi_datapoint.stateless_transformations.children_amount_norm
 from flccpsisrc.psi.psi_datapoint.tree_structures.node import Node, PSIConstants
 from flccpsisrc.psi.psi_datapoint.tree_structures.tree import Tree
 from flccpsisrc.psi.psi_datapoint.tree_structures.tree_builder import TreeBuilder
+from flccpsisrc.psi.psi_datapoint.tree_structures.tree_builder_prefix_care import TreeBuilderPrefixCare
 
 TRANSFORMATIONS = [  # Order in the dict must be preserved
     ("children_amount_normalization", ChildrenAmountNormalizer),
@@ -215,14 +216,23 @@ class PSIDatapointFacade:
         ids = self._tokenizer.encode_tree(tree)
         return tree, ids
 
-    def get_tree_builder(self, nodes_or_tree: Optional[Union[List[Node], Tree]] = None) -> TreeBuilder:
+    def get_tree_builder(self, nodes_or_tree: Optional[Union[List[Node], Tree]] = None,
+                         rollback_prefix: List[str] = None) -> TreeBuilder:
+        assert self._trained
+        tree = self._get_tree(nodes_or_tree)
+        if rollback_prefix:
+            return TreeBuilderPrefixCare(tree, self._tokenizer, rollback_prefix)
+        else:
+            return TreeBuilder(tree, self._tokenizer)
+
+    def _get_tree(self, nodes_or_tree: Optional[Union[List[Node], Tree]]) -> Tree:
         assert self._trained
         if nodes_or_tree is None:
-            return TreeBuilder(Tree([], self._stats_collector), self._tokenizer)
+            return Tree([], self._stats_collector)
         elif isinstance(nodes_or_tree, list):
-            return TreeBuilder(Tree(nodes_or_tree, self._stats_collector), self._tokenizer)
+            return Tree(nodes_or_tree, self._stats_collector)
         elif isinstance(nodes_or_tree, Tree):
-            return TreeBuilder(nodes_or_tree, self._tokenizer)
+            return nodes_or_tree
         else:
             raise TypeError(f"Node or tree must be Tree, List[Node] or None. But got {type(nodes_or_tree)}")
 

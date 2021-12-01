@@ -133,7 +133,7 @@ class BeamSearch:
             ind = ind.item()
             hyp_ind, token_ind = divmod(ind, self._vocab_size)
             tree_builder = self._tree_builders[hyp_ind].copy()
-            change_status = tree_builder.add_id(token_ind)
+            change_status, _ = tree_builder.add_id(token_ind)
             if change_status == ChangeStatus.END_LINE:
                 self._save_terminated(hyp_ind, token_ind, score.item(), tree_builder)
             else:

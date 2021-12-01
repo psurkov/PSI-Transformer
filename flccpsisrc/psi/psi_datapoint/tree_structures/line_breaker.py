@@ -1,11 +1,12 @@
+import copy
 import re
 from typing import Tuple, Optional, List
 
+from flccpsisrc.psi.psi_datapoint.token_utils import match_tokens, cut_matched_tokens
 from flccpsisrc.psi.psi_datapoint.tree_structures.node import Node, TreeConstants
 
 
 class LineBreaker:
-
     _new_line_nodes = [
         "SEMICOLON",
         "LBRACE",
@@ -29,8 +30,8 @@ class LineBreaker:
         self._indentation_change = None
 
     @staticmethod
-    def program(nodes: List[Node], indent: str = "    ", delimeter: str = " ") -> str:
-        lines_str, lines_nodes = LineBreaker.get_lines(nodes, indent, delimeter)
+    def program(nodes: List[Node], indent: str = "    ", delimeter: str = " ", skip_prefix: List[str] = None) -> str:
+        lines_str, lines_nodes = LineBreaker.get_lines(nodes, indent, delimeter, skip_prefix)
         return "\n".join(lines_str)
 
     @staticmethod
@@ -70,8 +71,13 @@ class LineBreaker:
 
     @staticmethod
     def get_lines(
-        nodes: List[Node], indent: str = "    ", delimeter: str = " "
+            nodes: List[Node], indent: str = "    ",
+            delimeter: str = " ",
+            skip_prefix: List[str] = None
     ) -> Tuple[List[str], List[List["Node"]]]:
+        if skip_prefix is None:
+            skip_prefix = []
+        skip_prefix = copy.deepcopy(skip_prefix)
         line_breaker = LineBreaker()
         nodes_lines: List[Tuple[int, List["Node"]]] = []
 
@@ -93,12 +99,19 @@ class LineBreaker:
 
         _, nodes_lines_list = zip(*nodes_lines)
         return [
-            f"{indent * indent_level}"
-            + delimeter.join(
-                LineBreaker.node_to_code(nodes_line)
-            )
-            for indent_level, nodes_line in nodes_lines
-        ], nodes_lines_list
+                   f"{indent * indent_level}"
+                   + delimeter.join(
+                       LineBreaker.__cut_prefix(LineBreaker.node_to_code(nodes_line), skip_prefix)
+                   )
+                   for indent_level, nodes_line in nodes_lines
+               ], nodes_lines_list
+
+    @staticmethod
+    def __cut_prefix(tokens: List[str], skip_prefix: List[str]) -> List[str]:
+        res, new_skip_prefix = cut_matched_tokens(tokens, skip_prefix)
+        skip_prefix.clear()
+        skip_prefix.extend(new_skip_prefix)
+        return res
 
     @staticmethod
     def node_to_code(nodes: List[Node]) -> List[str]:

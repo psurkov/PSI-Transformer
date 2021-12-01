@@ -51,7 +51,11 @@ class PSIConnector(Connector):
             (s, h) for s, h in sorted(zip(scores, all_hyps), key=lambda sh: sh[0], reverse=True) if s > 1e-2
         ]
         return [
-            (LineBreaker.program(h.tree_builder.tree.nodes[start_node_id:], indent=""), s) for s, h in selected_hyps
+            (LineBreaker.program(
+                h.tree_builder.tree.nodes[start_node_id:],
+                indent="",
+                skip_prefix=settings.rollback_prefix
+            ), s) for s, h in selected_hyps
         ]
 
     def cancel(self):

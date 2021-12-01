@@ -36,7 +36,7 @@ class PSIConnector(Connector):
     def get_suggestions(self, prime: str, filename: str, language: str, settings: GenerationSettings):
         tree, ids = self._facade.transform(prime)
         print(tree.nodes[0].tree_representation)
-        tree_builder = self._facade.get_tree_builder(tree)
+        tree_builder = self._facade.get_tree_builder(tree, settings.rollback_prefix)
         start_node_id = len(tree.nodes)
 
         sequence_generator = SequenceGenerator(self._model_wrapper, settings.num_iterations, settings.beam_size)
@@ -72,7 +72,10 @@ if __name__ == "__main__":
         connector = PSIConnector("models/gpt2-psi-94/")
         json_string = """{"label":"","AST":[{"node":"java.FILE","children":[1],"token":"<EMPTY>"},{"node":"PACKAGE_STATEMENT","children":[2],"token":"<EMPTY>"},{"node":"PACKAGE_KEYWORD","token":"package"}]}"""
         suggestions = connector.get_suggestions(
-            prime=json_string, filename="", language="", settings=GenerationSettings(num_iterations=30)
+            prime=json_string, filename="", language="", settings=GenerationSettings(
+                num_iterations=30,
+                rollback_prefix=["com", ".", "aliba"]
+            )
         )
         print("\n".join(f"{repr(s[0])} --- {s[1]}" for s in suggestions))
 

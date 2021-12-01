@@ -84,6 +84,11 @@ class Node:
         assert self._children is not None
         self._children = self._children + (child,)
 
+    def pop_child(self):
+        assert self._children is not None
+        assert len(self._children) > 0
+        self._children = self._children[:-1]
+
     @property
     def dfs_order(self) -> Iterable["Node"]:
         yield self

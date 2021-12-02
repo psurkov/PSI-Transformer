@@ -8,11 +8,11 @@ from omegaconf import OmegaConf
 
 from flccpsi.connectors.connector_base import Connector
 from flccpsi.connectors.settings import GenerationSettings
-from src.common.model_evaluation.beam_search.psi_gpt_wrapper import PSIGPT2Wrapper
-from src.common.model_evaluation.beam_search.sequence_generator import SequenceGenerator
-from src.common.model_training.pl_models.psi_gpt2 import PSIGPT2
-from src.psi.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
-from src.psi.psi_datapoint.tree_structures.line_breaker import LineBreaker
+from flccpsisrc.common.model_evaluation.beam_search.psi_gpt_wrapper import PSIGPT2Wrapper
+from flccpsisrc.common.model_evaluation.beam_search.sequence_generator import SequenceGenerator
+from flccpsisrc.common.model_training.pl_models.psi_gpt2 import PSIGPT2
+from flccpsisrc.psi.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
+from flccpsisrc.psi.psi_datapoint.tree_structures.line_breaker import LineBreaker
 
 logger = logging.getLogger(__name__)
 

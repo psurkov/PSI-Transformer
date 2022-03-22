@@ -14,7 +14,7 @@ class SequenceGenerator:
 
     def search_sequence(self, **kwargs) -> Tuple[List[Hypothesis], List[Hypothesis]]:
         self._model_wrapper.reset_state()
-        log_probs, tree_builder = self._model_wrapper.init_state(**kwargs)
+        log_probs, start_split_tree_builder = self._model_wrapper.init_state(**kwargs)
 
         assert tuple(log_probs.size()) == (
             1,
@@ -24,7 +24,7 @@ class SequenceGenerator:
         search = BeamSearch(
             self._model_wrapper.vocab_size,
             self._beam_size,
-            tree_builder,
+            start_split_tree_builder,
         )
 
         # expand batch

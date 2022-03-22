@@ -2,37 +2,46 @@ import difflib
 import json
 import os
 from json import JSONDecodeError
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import tqdm
+import youtokentome as yttm
 from omegaconf import OmegaConf, DictConfig
 
-from flccpsisrc.psi.psi_datapoint.stateful.stats_collector import StatsCollector
-from flccpsisrc.psi.psi_datapoint.stateful.tokenizer import TreeTokenizer
-from flccpsisrc.psi.psi_datapoint.stateless_transformations.children_amount_normalization import ChildrenAmountNormalizer
-from flccpsisrc.psi.psi_datapoint.tree_structures.node import Node, PSIConstants
-from flccpsisrc.psi.psi_datapoint.tree_structures.tree import Tree
-from flccpsisrc.psi.psi_datapoint.tree_structures.tree_builder import TreeBuilder
-
-TRANSFORMATIONS = [  # Order in the dict must be preserved
-    ("children_amount_normalization", ChildrenAmountNormalizer),
-]
+from flccpsisrc.psi.psi_datapoint.tree_structures.special_ids import SpecialIds, SPECIAL_IDS_RESERVED_SIZE
+from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree import SplitTree
+from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree_builder import SplitTreeBuilder
+from flccpsisrc.psi.psi_datapoint.tree_structures.structure_decompression import StructureDecompression
 
 
 class PSIDatapointFacade:
     _stats_filename = "psi/dataset_stats.json"
     _config_filename = "config.yaml"
+    _placeholder_bpe_filename = "placeholders.bpe"
+    _structure_compression_data_filename = "structureTreeCompressionData.json"
+    _type_coder_data_filename = "typeCoderData.json"
 
     def __init__(self, config: DictConfig, diff_warning: bool = True):
         self._config = config
 
         self._overwrite = self._config.psi_pretraining.overwrite
         pretrained_path = self._config.save_path
+        self._placeholders_bpe = yttm.BPE(
+            model=os.path.join(pretrained_path, PSIDatapointFacade._placeholder_bpe_filename)
+        )
+        self._structure_decompression = StructureDecompression(
+            os.path.join(
+                pretrained_path,
+                PSIDatapointFacade._type_coder_data_filename,
+            ),
+            os.path.join(
+                pretrained_path,
+                PSIDatapointFacade._structure_compression_data_filename
+            )
+        )
         if PSIDatapointFacade.pretrained_exists(pretrained_path):
             self._trained = True
-            self._stats_collector = StatsCollector.from_pretrained(pretrained_path, config.inference_mode)
-            self._tokenizer = TreeTokenizer.from_pretrained(pretrained_path)
             with open(os.path.join(pretrained_path, PSIDatapointFacade._stats_filename)) as f:
                 self._stats = json.load(f)
 
@@ -40,14 +49,12 @@ class PSIDatapointFacade:
             if diff_warning and self._config != config:
                 print(f"WARNING:\nLoaded config doesn't match current config! Diff:")
                 for text in difflib.unified_diff(
-                    OmegaConf.to_yaml(config).split("\n"), OmegaConf.to_yaml(self._config).split("\n")
+                        OmegaConf.to_yaml(config).split("\n"), OmegaConf.to_yaml(self._config).split("\n")
                 ):
                     if text[:3] not in ("+++", "---", "@@ "):
                         print(f"    {text}")
         else:
             self._trained = False
-            self._stats_collector = None
-            self._tokenizer = None
             self._stats = {}
 
     def _save_pretrained(self, path: str) -> None:
@@ -56,42 +63,19 @@ class PSIDatapointFacade:
         with open(stats_path, "w") as f:
             json.dump(self._stats, f)
         OmegaConf.save(self._config, config_path)
-        self._stats_collector.save_pretrained(self._config.save_path)
-        self._tokenizer.save_pretrained(self._config.save_path)
 
     @staticmethod
     def pretrained_exists(path: str) -> bool:
         stats_exists = os.path.exists(os.path.join(path, PSIDatapointFacade._stats_filename))
         config_exists = os.path.exists(os.path.join(path, PSIDatapointFacade._config_filename))
-        return (
-            StatsCollector.pretrained_exists(path)
-            and TreeTokenizer.pretrained_exists(path)
-            and stats_exists
-            and config_exists
-        )
+        return stats_exists and config_exists
 
     @property
     def is_trained(self) -> bool:
         return self._trained
 
-    @property
-    def tokenizer(self) -> TreeTokenizer:
-        return self._tokenizer
-
     def get_tokenized_sizes(self, holdout: str) -> List[int]:
         return self._stats[f"tree_tokenized_sizes_{holdout}"]
-
-    def _apply_transformations(self, nodes: List[Node]) -> List[Node]:
-        for transform_name, transform_cls in TRANSFORMATIONS:
-            if transform_name in self._config.psi_pretraining.transformations:
-                nodes = transform_cls().transform(nodes)
-        return nodes
-
-    def _inverse_apply_transformations(self, nodes: List[Node]) -> List[Node]:
-        for transform_name, transform_cls in reversed(TRANSFORMATIONS):
-            if transform_name in self._config.psi_pretraining.transformations:
-                nodes = transform_cls().inverse_transform(nodes)
-        return nodes
 
     def train(self) -> "PSIDatapointFacade":
         if self._trained:
@@ -108,7 +92,7 @@ class PSIDatapointFacade:
             for line in tqdm.tqdm(f, desc="Calculating stats of jsonl..."):
                 trees_amount += 1
                 try:
-                    nodes_amount_list.append(len(json.loads(line)["AST"]))
+                    nodes_amount_list.append(self._subtree_nodes(json.loads(line)["root"]))
                 except JSONDecodeError:
                     nodes_amount_list.append(np.iinfo(np.int32).max)
         nodes_amount_perc = np.percentile(
@@ -121,53 +105,28 @@ class PSIDatapointFacade:
         # creating nodes
         bar = tqdm.tqdm(total=sum(nodes_amount_list) - skipped_nodes_count, desc="Parsing trees...")
         skipped_trees_count = (100 - self._config.psi_pretraining.max_percentile) * 0.01 * trees_amount
-        nodes_lists = []
+        split_trees_ids_len = []
         with open(self._config.source_data.train, "r") as f:
             for json_string, is_ok in zip(f, jsonl_mask):
                 if is_ok:
                     json_dict = json.loads(json_string)
-                    nodes = self.json_to_tree(json_dict, to_filter=True)
-
-                    if nodes is None:
+                    split_tree = self.json_dict_to_split_tree(json_dict, to_filter=True)
+                    if split_tree is None:
                         skipped_trees_count += 1
                         continue
                     else:
-                        nodes_lists.append(nodes)
-                    bar.update(len(json_dict["AST"]))
+                        split_trees_ids_len.append(len(self.encode_split_tree_to_ids(split_tree)))
+                    bar.update(self._subtree_nodes(json_dict["root"]))
                 else:
                     skipped_trees_count += 1
         bar.close()
         print(f"Skipped {int(skipped_trees_count)} trees!")
 
-        orig_nodes_amount = [len(nodes) for nodes in nodes_lists]
-
-        # transforming trees
-        transformed_nodes_lists = [
-            self._apply_transformations(nodes) for nodes in tqdm.tqdm(nodes_lists, desc="Applying transformations...")
-        ]
-        # training stats collector
-        self._stats_collector = StatsCollector()
-        transformed_nodes_lists = self._stats_collector.train(transformed_nodes_lists)
-        # creating trees
-        trees = [Tree(nodes_list, self._stats_collector) for nodes_list in transformed_nodes_lists]
-
-        tree_compressed_sizes = [tree.compressed_size for tree in trees]
-        compress_ratios = [
-            compressed_size / orig_size for orig_size, compressed_size in zip(orig_nodes_amount, tree_compressed_sizes)
-        ]
-        print(f"Trees was compressed to " f"{sum(compress_ratios) / len(trees) * 100}% of its size in average")
-
-        # training tokenizer
-        self._tokenizer = TreeTokenizer(
-            self._config.tokenizer.vocab_size, self._config.tokenizer.min_frequency, self._config.tokenizer.dropout
-        )
-        self._tokenizer.train(trees)
-
         self._trained = True
 
         tree_tokenized_sizes = [
-            len(self._tokenizer.encode_tree(tree))
-            for tree in tqdm.tqdm(trees, desc="Collecting stats about tokenized trees train...")
+            ids_len for ids_len in
+            tqdm.tqdm(split_trees_ids_len, desc="Collecting stats about tokenized trees train...")
         ]
         self._stats["tree_tokenized_sizes_train"] = tree_tokenized_sizes
         self._stats["tree_tokenized_sizes_val"] = self._count_tokenized_sizes(self._config.source_data.val)
@@ -181,13 +140,12 @@ class PSIDatapointFacade:
         sizes = []
         with open(path) as f:
             for json_string in tqdm.tqdm(f, desc=f"Collecting stats about tokenized trees val/test..."):
-                res = self.transform(json_string, to_filter=True)
-                if res is not None:
-                    _, ids = res
-                    sizes.append(len(ids))
+                split_tree = self.json_dict_to_split_tree(json_string, to_filter=True)
+                if split_tree is not None:
+                    sizes.append(len(self.encode_split_tree_to_ids(split_tree)))
         return sizes
 
-    def json_to_tree(self, json_tree: Union[str, dict], to_filter: bool = False) -> Optional[List[Node]]:
+    def json_dict_to_split_tree(self, json_tree: Union[str, dict], to_filter: bool = False) -> Optional[SplitTree]:
         if isinstance(json_tree, str):
             try:
                 json_dict = json.loads(json_tree)
@@ -195,37 +153,45 @@ class PSIDatapointFacade:
                 return None
         else:
             json_dict = json_tree
-        if any(node["node"] == PSIConstants.ERROR_NAME.value for node in json_dict["AST"]):
-            return None
-        if to_filter and len(json_dict["AST"]) >= self._stats["nodes_amount_perc"]:
-            return None
-        return Node.load_psi_miner_nodes(json_dict)
-
-    def transform(self, json_string: str, to_filter: bool = False) -> Optional[Tuple[Tree, List[int]]]:
-        assert self._trained
-        nodes = self.json_to_tree(json_string, to_filter)
-        if nodes is None:
+        if to_filter and self._subtree_nodes(json_dict["root"]) >= self._stats["nodes_amount_perc"]:
             return None
 
-        transformed_nodes = self._apply_transformations(nodes)
-        transformed_nodes = self._stats_collector.transform(transformed_nodes)
-        if transformed_nodes is None:
-            return None
-        tree = Tree(transformed_nodes, self._stats_collector)
-        ids = self._tokenizer.encode_tree(tree)
-        return tree, ids
+        def from_subtree(cur_dict: dict) -> SplitTree.Node:
+            return SplitTree.Node(
+                cur_dict["nodeTypeId"],
+                cur_dict["placeholders"],
+                [from_subtree(child_dict) for child_dict in cur_dict["children"]],
+            )
 
-    def get_tree_builder(self, nodes_or_tree: Optional[Union[List[Node], Tree]] = None) -> TreeBuilder:
-        assert self._trained
-        if nodes_or_tree is None:
-            return TreeBuilder(Tree([], self._stats_collector), self._tokenizer)
-        elif isinstance(nodes_or_tree, list):
-            return TreeBuilder(Tree(nodes_or_tree, self._stats_collector), self._tokenizer)
-        elif isinstance(nodes_or_tree, Tree):
-            return TreeBuilder(nodes_or_tree, self._tokenizer)
-        else:
-            raise TypeError(f"Node or tree must be Tree, List[Node] or None. But got {type(nodes_or_tree)}")
+        return SplitTree(from_subtree(json_dict["root"]))
 
-    def inverse_transform(self, tree: Tree) -> List[Node]:
-        assert self._trained
-        return self._inverse_apply_transformations(tree.nodes)
+    def encode_split_tree_to_ids(self, tree: SplitTree) -> List[int]:
+        res = []
+
+        def encode_subtree(cur: SplitTree.Node) -> None:
+            res.append(cur.node_type + SPECIAL_IDS_RESERVED_SIZE)
+
+            for index, placeholder_ids in enumerate(cur.placeholders):
+                res.extend(
+                    [placeholder_id + SPECIAL_IDS_RESERVED_SIZE + self._structure_decompression.vocab_size
+                     for placeholder_id in placeholder_ids]
+                )
+                res.append(SpecialIds.END_OF_PLACEHOLDER.value)
+
+            for child in cur.children:
+                encode_subtree(child)
+            res.append(SpecialIds.END_OF_NODE_CHILDREN.value)
+
+        encode_subtree(tree.root)
+        return res
+
+    def get_split_tree_builder(self, init_tree: SplitTree):
+        return SplitTreeBuilder(self._structure_decompression, self._placeholders_bpe)
+
+    @property
+    def vocab_size(self):
+        return SPECIAL_IDS_RESERVED_SIZE + self._structure_decompression.vocab_size + self._placeholders_bpe.vocab_size()
+
+    @staticmethod
+    def _subtree_nodes(json_dict: dict) -> int:
+        return 1 + sum(map(lambda t: PSIDatapointFacade._subtree_nodes(t), json_dict["children"]))

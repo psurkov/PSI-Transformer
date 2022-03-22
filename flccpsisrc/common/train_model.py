@@ -45,7 +45,7 @@ def train(config: DictConfig) -> None:
 
     facade = PSIDatapointFacade(config)
     assert facade.is_trained
-    model = PSIGPT2(config, facade.tokenizer.vocab_size)
+    model = PSIGPT2(config, facade.vocab_size)
     datamodule = PSIDataModule(config)
 
     pl.seed_everything(config.training.seed)

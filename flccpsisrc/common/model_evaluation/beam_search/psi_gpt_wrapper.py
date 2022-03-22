@@ -7,7 +7,8 @@ from transformers import GPT2LMHeadModel
 
 from flccpsisrc.common.model_evaluation.beam_search.model_wrapper import ModelWrapper
 from flccpsisrc.psi.psi_datapoint.psi_datapoint_facade import PSIDatapointFacade
-from flccpsisrc.psi.psi_datapoint.tree_structures.tree_builder import TreeBuilder
+from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree import SplitTree
+from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree_builder import SplitTreeBuilder
 
 
 class PSIGPT2Wrapper(ModelWrapper):
@@ -19,17 +20,17 @@ class PSIGPT2Wrapper(ModelWrapper):
 
         self._mems = None
 
-    def init_state(self, tree_builder: TreeBuilder, num_iterations: int) -> Tuple[torch.Tensor, TreeBuilder]:
+    def init_state(self, split_tree: SplitTree, num_iterations: int) -> Tuple[torch.Tensor, SplitTreeBuilder]:
         context_len = self._model.config.n_ctx - num_iterations
 
-        context_ids = tree_builder.ids[-context_len:]
+        context_ids = self._psi_facade.encode_split_tree_to_ids(split_tree)[-context_len:]
 
         context = torch.tensor(context_ids).unsqueeze(0)
         with torch.no_grad():
             scores, self._mems = self._model(context, use_cache=True, return_dict=False)
             log_probs = F.log_softmax(scores[:, -1, :], dim=1)
 
-        return log_probs, tree_builder
+        return log_probs, self._psi_facade.get_split_tree_builder(split_tree)
 
     def sort_state(self, sort_mask: torch.Tensor) -> None:
         self._mems = tuple(tuple(k[sort_mask].contiguous() for k in mem) for mem in self._mems)
@@ -46,4 +47,4 @@ class PSIGPT2Wrapper(ModelWrapper):
 
     @property
     def vocab_size(self) -> int:
-        return self._psi_facade.tokenizer.vocab_size
+        return self._psi_facade.vocab_size

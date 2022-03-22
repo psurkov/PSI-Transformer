@@ -56,7 +56,8 @@ class PSIDataset(ParallelIterableDataset):
         with open(self._data_path, "r") as f:
             for i, line in enumerate(f):
                 if i % world_size == rank:
-                    res = self._psi_facade.transform(line, to_filter=True)
-                    if res is not None:
-                        _, ids = res
-                        yield from self._slice_examples(ids)
+                    tree = self._psi_facade.json_dict_to_split_tree(line, to_filter=True)
+                    if tree is not None:
+                        yield from self._slice_examples(
+                            self._psi_facade.encode_split_tree_to_ids(tree)
+                        )

@@ -92,7 +92,7 @@ class PSIDatapointFacade:
             for line in tqdm.tqdm(f, desc="Calculating stats of jsonl..."):
                 trees_amount += 1
                 try:
-                    nodes_amount_list.append(self._subtree_nodes(json.loads(line)["root"]))
+                    nodes_amount_list.append(len(json.loads(line)["nodes"]))
                 except JSONDecodeError:
                     nodes_amount_list.append(np.iinfo(np.int32).max)
         nodes_amount_perc = np.percentile(
@@ -116,7 +116,7 @@ class PSIDatapointFacade:
                         continue
                     else:
                         split_trees_ids_len.append(len(self.encode_split_tree_to_ids(split_tree)))
-                    bar.update(self._subtree_nodes(json_dict["root"]))
+                    bar.update(len(json_dict["nodes"]))
                 else:
                     skipped_trees_count += 1
         bar.close()
@@ -153,17 +153,19 @@ class PSIDatapointFacade:
                 return None
         else:
             json_dict = json_tree
-        if to_filter and self._subtree_nodes(json_dict["root"]) >= self._stats["nodes_amount_perc"]:
+        if to_filter and len(json_dict["nodes"]) >= self._stats["nodes_amount_perc"]:
             return None
 
-        def from_subtree(cur_dict: dict) -> SplitTree.Node:
+        nodes = json_dict["nodes"]
+
+        def from_subtree(node_index: int) -> SplitTree.Node:
             return SplitTree.Node(
-                cur_dict["nodeTypeId"],
-                cur_dict["placeholders"],
-                [from_subtree(child_dict) for child_dict in cur_dict["children"]],
+                nodes[node_index]["nodeTypeId"],
+                nodes[node_index]["placeholders"],
+                [from_subtree(child_index) for child_index in nodes[node_index]["children"]],
             )
 
-        return SplitTree(from_subtree(json_dict["root"]))
+        return SplitTree(from_subtree(0))
 
     def encode_split_tree_to_ids(self, tree: SplitTree) -> List[int]:
         res = []
@@ -191,7 +193,3 @@ class PSIDatapointFacade:
     @property
     def vocab_size(self):
         return SPECIAL_IDS_RESERVED_SIZE + self._structure_decompression.vocab_size + self._placeholders_bpe.vocab_size()
-
-    @staticmethod
-    def _subtree_nodes(json_dict: dict) -> int:
-        return 1 + sum(map(lambda t: PSIDatapointFacade._subtree_nodes(t), json_dict["children"]))

@@ -1,6 +1,5 @@
 import copy
 import dataclasses
-import random
 from enum import Enum
 from typing import List, Callable, Set
 
@@ -68,7 +67,6 @@ class SplitTreeBuilder:
                     SPECIAL_IDS_RESERVED_SIZE + self._structure_decompression.vocab_size + token_id
                     for token_id in range(self._placeholders_bpe.vocab_size())
                 )
-                res = set() if random.randint(0, 4) == 1 else res  # todo delete
                 res.add(SpecialIds.END_OF_PLACEHOLDER.value)
                 return res
             elif self._state == SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN:
@@ -80,7 +78,6 @@ class SplitTreeBuilder:
                     current = self._nodes[self._visit_stack[-1]]
                     current_content = self._structure_decompression.get_content_fragments_for(current.node_type)
                     if len(current.children) >= current_content.children:
-                        res = set()  # todo delete
                         res.add(SpecialIds.END_OF_NODE_CHILDREN.value)
                 return res
 
@@ -174,7 +171,9 @@ class SplitTreeBuilder:
                     return []
                 pred = self._nodes[self._visit_stack[-2]]
                 pred_content = self._structure_decompression.get_content_fragments_for(pred.node_type)
-                return pred_content.text_after_n_children(len(pred.children))
+                if len(pred.children) <= pred_content.children:
+                    return pred_content.text_after_n_children(len(pred.children))
+                return []
 
             def on_structure_token(token_id):
                 return self._structure_decompression.get_content_fragments_for(token_id).text_prefix()

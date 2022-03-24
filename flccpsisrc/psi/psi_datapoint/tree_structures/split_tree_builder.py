@@ -176,9 +176,11 @@ class SplitTreeBuilder:
                 current = self._nodes[self._visit_stack[-1]]
                 current_content = self._structure_decompression.get_content_fragments_for(current.node_type)
                 if len(current.placeholders) <= current_content.placeholders_before_first_child:
-                    return TokenHolder.from_tokens(
-                        current_content.text_after_n_placeholders(len(current.placeholders)), True
-                    )
+                    tokens = current_content.text_after_n_placeholders(len(current.placeholders))
+                    if len(tokens) == 0:
+                        return TokenHolder.from_tokens([], True)
+                    else:
+                        return TokenHolder.from_tokens([""] + tokens, True)
                 else:
                     return TokenHolder.from_tokens([], False)
 

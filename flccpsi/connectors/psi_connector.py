@@ -39,7 +39,7 @@ class PSIConnector(Connector):
 
         sequence_generator = SequenceGenerator(self._model_wrapper, settings.num_iterations, settings.beam_size)
         terminated_hyps, current_hyps = sequence_generator.search_sequence(
-            num_iterations=settings.num_iterations, split_tree=split_tree
+            num_iterations=settings.num_iterations, split_tree=split_tree, rollback_prefix=settings.rollback_prefix
         )
 
         all_hyps = terminated_hyps if settings.only_full_lines else terminated_hyps + current_hyps
@@ -71,7 +71,10 @@ if __name__ == "__main__":
         json_string = """{"nodes":[{"nodeTypeId":14,"children":[1,2],"placeholders":[]},{"nodeTypeId":21,"children":[],"placeholders":[]},{"nodeTypeId":603,"children":[3,4,5,6,7],"placeholders":[]},{"nodeTypeId":1,"children":[],"placeholders":[[11447]]},{"nodeTypeId":48,"children":[],"placeholders":[]},{"nodeTypeId":49,"children":[],"placeholders":[]},{"nodeTypeId":50,"children":[],"placeholders":[]},{"nodeTypeId":43,"children":[],"placeholders":[]}]}"""
 
         suggestions = connector.get_suggestions(
-            prime=json_string, filename="", language="", settings=GenerationSettings(num_iterations=20)
+            prime=json_string, filename="", language="", settings=GenerationSettings(
+                num_iterations=20,
+                rollback_prefix=["public", "voi"]
+            )
         )
         print("\n".join(f"{repr(s[0])} --- {s[1]}" for s in suggestions))
 

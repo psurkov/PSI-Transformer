@@ -9,6 +9,7 @@ import tqdm
 import youtokentome as yttm
 from omegaconf import OmegaConf, DictConfig
 
+from flccpsisrc.common.token_holder import TokenHolder
 from flccpsisrc.psi.psi_datapoint.tree_structures.special_ids import SpecialIds, SPECIAL_IDS_RESERVED_SIZE
 from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree import SplitTree
 from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree_builder import SplitTreeBuilder
@@ -187,8 +188,8 @@ class PSIDatapointFacade:
         encode_subtree(tree.root)
         return res
 
-    def get_split_tree_builder(self, init_tree: SplitTree):
-        return SplitTreeBuilder(self._structure_decompression, self._placeholders_bpe)
+    def get_split_tree_builder(self, init_tree: SplitTree, rollback_prefix_holder: TokenHolder):
+        return SplitTreeBuilder(self._structure_decompression, self._placeholders_bpe, rollback_prefix_holder)
 
     @property
     def vocab_size(self):

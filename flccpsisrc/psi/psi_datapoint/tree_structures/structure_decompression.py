@@ -127,7 +127,7 @@ class StructureDecompression:
 
     def __init__(self, type_coder_data: str, structure_compression_data: str):
         self._can_terminate_if_start_generate = []
-        self._id_to_content_fragments = {}
+        self._id_to_content_fragments = {0: NodeContentFragments()}
         id_to_already_children = {}
         with open(type_coder_data) as f:
             coder_data = json.load(f)

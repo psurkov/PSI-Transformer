@@ -133,8 +133,7 @@ class BeamSearch:
         sort_mask = []
         sample_scores = []
         sorted_scores, sorted_inds = torch.topk(
-            # log_probs, k=(1 + LineBreaker.get_num_newline_nodes()) * self._beam_size, sorted=False TODO
-            log_probs, k=(1 + 6) * self._beam_size, sorted=False
+            log_probs, k=10 * self._beam_size, sorted=True
         )
         for ind, score in zip(sorted_inds, sorted_scores):
             if torch.isnan(score):

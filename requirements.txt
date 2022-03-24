@@ -10,6 +10,4 @@ wandb==0.10.30
 torchmetrics==0.3.2
 editdistance==0.5.3
 Cython==0.29.28
-
-
 git+https://github.com/JetBrains-Research/YouTokenToMe.git#egg=youtokentome

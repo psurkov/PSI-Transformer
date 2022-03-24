@@ -118,7 +118,7 @@ class BeamSearch:
 
     def _preprocess_log_probs(self, log_probs: torch.Tensor) -> torch.Tensor:
         for row_id, version_id in enumerate(self._split_tree_builder.active_versions_ids):
-            possible_ids = list(self._split_tree_builder.get_next_possible_ids(version_id))
+            possible_ids = self._split_tree_builder.get_next_possible_ids(version_id)
             self._row_mask[:] = 1
             self._row_mask[possible_ids] = 0
             log_probs[row_id, self._row_mask] = float("-inf")
@@ -132,11 +132,9 @@ class BeamSearch:
         active_versions = []
         sort_mask = []
         sample_scores = []
-        sorted_scores, sorted_inds = torch.topk(
-            log_probs, k=10 * self._beam_size, sorted=True
-        )
+        sorted_scores, sorted_inds = torch.sort(log_probs, descending=True)
         for ind, score in zip(sorted_inds, sorted_scores):
-            if torch.isnan(score):
+            if torch.isnan(score) or torch.isneginf(score):
                 break
             ind = ind.item()
             hyp_ind, token_ind = divmod(ind, self._vocab_size)

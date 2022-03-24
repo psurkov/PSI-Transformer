@@ -36,3 +36,6 @@ class TokenHolder:
         min_len = min(len(self._data), len(other._data))
         assert self._data[:min_len] == other._data[:min_len]
         self._data = self._data[min_len:]
+
+    def is_empty(self) -> bool:
+        return len(self._data) == 0

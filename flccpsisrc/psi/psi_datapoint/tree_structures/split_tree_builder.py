@@ -1,7 +1,7 @@
 import copy
 import dataclasses
 from enum import Enum
-from typing import List, Callable, Set
+from typing import List, Callable
 
 from youtokentome import BPE
 
@@ -286,13 +286,14 @@ class SplitTreeBuilder:
         assert version_id in self._versions
         return self._versions[version_id].decode_if_add_token_id(token_id)
 
-    def decode_ids_to_text(self, ids: List[int]) -> str:
+    def decode_generated_ids(self, ids: List[int]) -> str:
         new_version = SplitTreeBuilder.Version.empty_version(
             self._rollback_prefix_holder,
             self._versions_shared
         )
-        res = ""
+        suggestion = TokenHolder.from_tokens([], False)
         for token_id in ids:
-            res += new_version.decode_if_add_token_id(token_id).__str__()
+            suggestion.extend(new_version.decode_if_add_token_id(token_id))
             new_version.add_token(token_id)
-        return res
+        suggestion.remove_prefix(self._rollback_prefix_holder)
+        return suggestion.__str__()

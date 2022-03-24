@@ -1,9 +1,9 @@
 import copy
-from typing import List
+from typing import List, Optional
 
 
 class TokenHolder:
-    def __init__(self, data):
+    def __init__(self, data: List[Optional[str]]):
         self._data = data
 
     @staticmethod
@@ -39,3 +39,6 @@ class TokenHolder:
 
     def is_empty(self) -> bool:
         return len(self._data) == 0
+
+    def extend(self, other: "TokenHolder") -> None:
+        self._data.extend(other._data)

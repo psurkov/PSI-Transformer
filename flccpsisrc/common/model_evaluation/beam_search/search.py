@@ -21,7 +21,7 @@ class Hypothesis:
 
     @property
     def text(self) -> str:
-        return self._split_tree_builder.decode_ids_to_text(self.ids)
+        return self._split_tree_builder.decode_generated_ids(self.ids)
 
 
 class BeamSearch:

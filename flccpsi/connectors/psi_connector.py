@@ -43,13 +43,13 @@ class PSIConnector(Connector):
         )
 
         all_hyps = terminated_hyps if settings.only_full_lines else terminated_hyps + current_hyps
-        scores = [h.get_normalized_score() + 100 for h in all_hyps] # TODO delete +100
+        scores = [h.get_normalized_score() for h in all_hyps]
 
         selected_hyps = [
             (s, h) for s, h in sorted(zip(scores, all_hyps), key=lambda sh: sh[0], reverse=True) if s > 1e-2
         ]
         return [
-            (" ".join(h.tokens), s) for s, h in selected_hyps
+            (h.text, s) for s, h in selected_hyps
         ]
 
     def cancel(self):
@@ -68,14 +68,10 @@ if __name__ == "__main__":
     def main():
         connector = PSIConnector("models/cur/")
 
-        # public class Main {
-        #
-        #     public void funcName() {
-        #         <caret>
-        json_string = """{"root":{"nodeTypeId":14,"children":[{"nodeTypeId":21,"children":[],"placeholders":[]},{"nodeTypeId":558,"children":[{"nodeTypeId":1,"children":[],"placeholders":[[4,46,612]]},{"nodeTypeId":32,"children":[],"placeholders":[]},{"nodeTypeId":38,"children":[],"placeholders":[]},{"nodeTypeId":40,"children":[],"placeholders":[]},{"nodeTypeId":41,"children":[],"placeholders":[]},{"nodeTypeId":599,"children":[{"nodeTypeId":52,"children":[{"nodeTypeId":41,"children":[],"placeholders":[]}],"placeholders":[]}],"placeholders":[[4,23,1466,610]]}],"placeholders":[]}],"placeholders":[]}}"""
+        json_string = """{"nodes":[{"nodeTypeId":14,"children":[1,2],"placeholders":[]},{"nodeTypeId":21,"children":[],"placeholders":[]},{"nodeTypeId":603,"children":[3,4,5,6,7],"placeholders":[]},{"nodeTypeId":1,"children":[],"placeholders":[[11447]]},{"nodeTypeId":48,"children":[],"placeholders":[]},{"nodeTypeId":49,"children":[],"placeholders":[]},{"nodeTypeId":50,"children":[],"placeholders":[]},{"nodeTypeId":43,"children":[],"placeholders":[]}]}"""
 
         suggestions = connector.get_suggestions(
-            prime=json_string, filename="", language="", settings=GenerationSettings(num_iterations=5)
+            prime=json_string, filename="", language="", settings=GenerationSettings(num_iterations=20)
         )
         print("\n".join(f"{repr(s[0])} --- {s[1]}" for s in suggestions))
 

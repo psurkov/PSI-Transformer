@@ -1,6 +1,6 @@
 import json
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, Callable
 
 
 class NodeContentFragment:
@@ -48,6 +48,16 @@ class NodeContentFragments:
     def children(self) -> int:
         return len([f for f in self.fragments if f.fragment_type == NodeContentFragment.FragmentType.CHILD])
 
+    @property
+    def placeholders_before_first_child(self) -> int:
+        res = 0
+        for f in self.fragments:
+            if f.fragment_type == NodeContentFragment.FragmentType.CHILD:
+                break
+            if f.fragment_type == NodeContentFragment.FragmentType.PLACEHOLDER:
+                res += 1
+        return res
+
     def text_prefix(self) -> List[str]:
         res = []
         for f in self.fragments:
@@ -70,17 +80,22 @@ class NodeContentFragments:
         assert was_placeholders >= n
         return res
 
-    def text_after_n_children(self, n: int) -> List[str]:
+    def text_after_n_children(self, n: int, placeholder_text_by_index: Callable) -> List[str]:
         res = []
         was_children = 0
+        was_placeholders = 0
         for f in self.fragments:
             if was_children >= n:
                 if f.fragment_type == NodeContentFragment.FragmentType.TEXT:
                     res.append(f.self_text)
+                elif f.fragment_type == NodeContentFragment.FragmentType.PLACEHOLDER:
+                    res.append(placeholder_text_by_index(was_placeholders))
                 else:
                     break
             if f.fragment_type == NodeContentFragment.FragmentType.CHILD:
                 was_children += 1
+            if f.fragment_type == NodeContentFragment.FragmentType.PLACEHOLDER:
+                was_placeholders += 1
         assert was_children >= n
         return res
 
@@ -111,10 +126,12 @@ class NodeContentFragments:
 class StructureDecompression:
 
     def __init__(self, type_coder_data: str, structure_compression_data: str):
+        self._can_terminate_if_start_generate = []
         self._id_to_content_fragments = {}
         id_to_already_children = {}
         with open(type_coder_data) as f:
             coder_data = json.load(f)
+            self._can_terminate_if_start_generate = [coder_data["structureTypenameToType"]["CODE_BLOCK"]["id"]]
             for placeholder in coder_data["placeholderTypenameToType"]:
                 placeholder_id = coder_data["placeholderTypenameToType"][placeholder]["id"]
                 self._id_to_content_fragments[placeholder_id] = NodeContentFragments().append_new_placeholder_fragment()
@@ -167,6 +184,10 @@ class StructureDecompression:
     @property
     def vocab_size(self) -> int:
         return self._vocab_size
+
+    @property
+    def can_terminate_if_start_generate(self) -> List[int]:
+        return self._can_terminate_if_start_generate
 
     def get_content_fragments_for(self, node_type_id) -> NodeContentFragments:
         return self._id_to_content_fragments[node_type_id]

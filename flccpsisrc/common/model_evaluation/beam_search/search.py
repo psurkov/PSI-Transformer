@@ -20,7 +20,7 @@ class Hypothesis:
         return math.exp(self.score / norm_factor)
 
     @property
-    def tokens(self) -> List[str]:
+    def text(self) -> str:
         return self._split_tree_builder.decode_ids_to_text(self.ids)
 
 

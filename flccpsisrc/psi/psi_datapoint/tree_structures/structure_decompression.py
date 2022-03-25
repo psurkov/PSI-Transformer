@@ -128,21 +128,18 @@ class StructureDecompression:
     def __init__(self, type_coder_data: str, structure_compression_data: str):
         self._can_terminate_if_start_generate = []
         self._id_to_content_fragments = {0: NodeContentFragments()}
-        id_to_already_children = {}
         with open(type_coder_data) as f:
             coder_data = json.load(f)
             self._can_terminate_if_start_generate = [coder_data["structureTypenameToType"]["CODE_BLOCK"]["id"]]
             for placeholder in coder_data["placeholderTypenameToType"]:
                 placeholder_id = coder_data["placeholderTypenameToType"][placeholder]["id"]
                 self._id_to_content_fragments[placeholder_id] = NodeContentFragments().append_new_placeholder_fragment()
-                id_to_already_children[placeholder_id] = 0
             for structure in coder_data["structureTypenameToType"]:
                 structure_id = coder_data["structureTypenameToType"][structure]["id"]
                 structure_text = coder_data["structureTypenameToType"][structure]["text"]
                 self._id_to_content_fragments[structure_id] = NodeContentFragments()
                 if len(structure_text) > 0:
                     self._id_to_content_fragments[structure_id].append_new_text_fragment(structure_text)
-                id_to_already_children[structure_id] = 0
 
         with open(structure_compression_data) as f:
             compression_data = json.load(f)
@@ -154,12 +151,11 @@ class StructureDecompression:
                 children_number_in_lower = rule["childrenNumberInLower"]
                 new_type_id = rule["newTypeId"]
 
-                id_to_already_children[new_type_id] = lower_index_in_upper
 
                 upper_fragments = self._id_to_content_fragments[upper_type_id]
 
                 complete_lower_fragments = NodeContentFragments().extend(self._id_to_content_fragments[lower_type_id])
-                need_extra_children = children_number_in_lower - id_to_already_children[lower_type_id]
+                need_extra_children = children_number_in_lower - self._id_to_content_fragments[lower_type_id].children
                 assert need_extra_children >= 0
                 for i in range(need_extra_children):
                     complete_lower_fragments.append_new_child_fragment()

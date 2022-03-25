@@ -76,8 +76,8 @@ if __name__ == "__main__":
         suggestions = connector.get_suggestions(
             prime=json_string, filename="", language="", settings=GenerationSettings(
                 num_iterations=10,
-                rollback_prefix=[]
-                # rollback_prefix=["List", "<", "Integer", ">"]
+                # rollback_prefix=[]
+                rollback_prefix=["List", "<", "Integer", ">"]
             )
         )
         print("\n".join(f"{repr(s[0])} --- {s[1]}" for s in suggestions))

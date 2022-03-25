@@ -132,7 +132,7 @@ class BeamSearch:
         active_versions = []
         sort_mask = []
         sample_scores = []
-        sorted_scores, sorted_inds = torch.sort(log_probs, descending=True)
+        sorted_scores, sorted_inds = torch.sort(torch.nan_to_num(log_probs, nan=-float('inf')), descending=True)
         for ind, score in zip(sorted_inds, sorted_scores):
             if torch.isnan(score) or torch.isneginf(score):
                 break

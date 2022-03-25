@@ -68,12 +68,16 @@ if __name__ == "__main__":
     def main():
         connector = PSIConnector("models/cur/")
 
-        json_string = """{"nodes":[{"nodeTypeId":14,"children":[1,2],"placeholders":[]},{"nodeTypeId":21,"children":[],"placeholders":[]},{"nodeTypeId":603,"children":[3,4,5,6,7],"placeholders":[]},{"nodeTypeId":1,"children":[],"placeholders":[[11447]]},{"nodeTypeId":48,"children":[],"placeholders":[]},{"nodeTypeId":49,"children":[],"placeholders":[]},{"nodeTypeId":50,"children":[],"placeholders":[]},{"nodeTypeId":43,"children":[],"placeholders":[]}]}"""
+        json_string = """{"nodes":[{"nodeTypeId":14,"children":[1,4],"placeholders":[]},{"nodeTypeId":21,"children":[2,3],"placeholders":[]},{"nodeTypeId":314,"children":[],"placeholders":[[7982],[8067],[8604]]},{"nodeTypeId":314,"children":[],"placeholders":[[7982],[8067],[7955]]},{"nodeTypeId":603,"children":[5,6,7,8,9,10],"placeholders":[]},{"nodeTypeId":1,"children":[],"placeholders":[[9392]]},{"nodeTypeId":48,"children":[],"placeholders":[]},{"nodeTypeId":49,"children":[],"placeholders":[]},{"nodeTypeId":50,"children":[],"placeholders":[]},{"nodeTypeId":43,"children":[],"placeholders":[]},{"nodeTypeId":1082,"children":[11],"placeholders":[[23,8145,11122]]},{"nodeTypeId":61,"children":[12],"placeholders":[]},{"nodeTypeId":43,"children":[],"placeholders":[]}]}"""
+        # [19, 26, 319, 9215, 0, 9300, 0, 9837, 0, 1, 319, 9215, 0, 9300, 0, 9188, 0, 1, 1, 608, 6, 10625, 0, 1, 53, 1, 54, 1, 55, 1, 48, 1, 1087, 1256, 9378, 12355, 0, 66, 48, 1, 1, 1, 1, 1]
 
+        ddddddddddd = """{"nodes":[{"nodeTypeId":14,"children":[1,4],"placeholders":[]},{"nodeTypeId":21,"children":[2,3],"placeholders":[]},{"nodeTypeId":314,"children":[],"placeholders":[[7982],[8067],[8604]]},{"nodeTypeId":314,"children":[],"placeholders":[[7982],[8067],[7955]]},{"nodeTypeId":603,"children":[5,6,7,8,9,10],"placeholders":[]},{"nodeTypeId":1,"children":[],"placeholders":[[9392]]},{"nodeTypeId":48,"children":[],"placeholders":[]},{"nodeTypeId":49,"children":[],"placeholders":[]},{"nodeTypeId":50,"children":[],"placeholders":[]},{"nodeTypeId":43,"children":[],"placeholders":[]},{"nodeTypeId":1082,"children":[11],"placeholders":[[23,8145,11122]]},{"nodeTypeId":61,"children":[12,13],"placeholders":[]},{"nodeTypeId":43,"children":[],"placeholders":[]},{"nodeTypeId":483,"children":[],"placeholders":[[33],[8465]]}]}"""
+        # [19, 26, 319, 9215, 0, 9300, 0, 9837, 0, 1, 319, 9215, 0, 9300, 0, 9188, 0, 1, 1, 608, 6, 10625, 0, 1, 53, 1, 54, 1, 55, 1, 48, 1, 1087, 1256, 9378, 12355, 0, 66, 48, 1, 488, 1266, 0, 9698, 0, 1, 1, 1, 1, 1]
         suggestions = connector.get_suggestions(
             prime=json_string, filename="", language="", settings=GenerationSettings(
-                num_iterations=20,
-                rollback_prefix=["public", "voi"]
+                num_iterations=10,
+                rollback_prefix=[]
+                # rollback_prefix=["List", "<", "Integer", ">"]
             )
         )
         print("\n".join(f"{repr(s[0])} --- {s[1]}" for s in suggestions))

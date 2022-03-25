@@ -29,7 +29,9 @@ class PSIGPT2Wrapper(ModelWrapper):
     ) -> Tuple[torch.Tensor, SplitTreeBuilder]:
         context_len = self._model.config.n_ctx - num_iterations
 
-        context_ids = self._psi_facade.encode_split_tree_to_ids(split_tree)[-context_len:]
+        split_tree_ids = self._psi_facade.encode_split_tree_to_ids(split_tree)
+        self._psi_facade.remove_end_of_children_suffix(split_tree_ids)
+        context_ids = split_tree_ids[-context_len:]
 
         context = torch.tensor(context_ids).unsqueeze(0)
         with torch.no_grad():

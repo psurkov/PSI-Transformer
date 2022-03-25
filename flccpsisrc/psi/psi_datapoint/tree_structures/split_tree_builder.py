@@ -40,8 +40,9 @@ class SplitTreeBuilder:
 
     class Version:
         class State(Enum):
-            AWAIT_STRUCTURE_TOKEN = 0
-            AWAIT_PLACEHOLDER_TOKEN = 1
+            AWAIT_START = 0
+            AWAIT_STRUCTURE_TOKEN = 1
+            AWAIT_PLACEHOLDER_TOKEN = 2
 
         def __init__(
                 self,
@@ -65,7 +66,7 @@ class SplitTreeBuilder:
             return SplitTreeBuilder.Version(
                 [],
                 [],
-                SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN,
+                SplitTreeBuilder.Version.State.AWAIT_START,
                 rollback_prefix_holder.copy(),
                 versions_shared
             )
@@ -86,7 +87,9 @@ class SplitTreeBuilder:
             )
 
         def _get_next_possible_by_state_ids(self) -> List[int]:
-            if self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN:
+            if self._state == SplitTreeBuilder.Version.State.AWAIT_START:
+                return self._versions_shared.structure_and_end_of_node_children_tokens
+            elif self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN:
                 return self._versions_shared.placeholders_tokens
             elif self._state == SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN:
                 if len(self._visit_stack) > 0:
@@ -123,6 +126,8 @@ class SplitTreeBuilder:
                 assert len(current.placeholders) <= current_content.placeholders
                 return on_end_of_placeholder()
             elif token_id == SpecialIds.END_OF_NODE_CHILDREN.value:
+                if self._state == SplitTreeBuilder.Version.State.AWAIT_START:
+                    return on_end_of_node_children()
                 assert self._state == SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN
                 current = self._nodes[self._visit_stack[-1]]
                 current_content = self._versions_shared.structure_decompression.get_content_fragments_for(
@@ -131,7 +136,8 @@ class SplitTreeBuilder:
                 return on_end_of_node_children()
             elif SPECIAL_IDS_RESERVED_SIZE <= token_id \
                     < SPECIAL_IDS_RESERVED_SIZE + self._versions_shared.structure_decompression.vocab_size:
-                assert self._state == SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN
+                assert self._state == SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN \
+                       or self._state == SplitTreeBuilder.Version.State.AWAIT_START
                 return on_structure_token(token_id - SPECIAL_IDS_RESERVED_SIZE)
             elif SPECIAL_IDS_RESERVED_SIZE + self._versions_shared.structure_decompression.vocab_size <= token_id \
                     < SPECIAL_IDS_RESERVED_SIZE + self._versions_shared.structure_decompression.vocab_size \
@@ -154,12 +160,17 @@ class SplitTreeBuilder:
                 return SplitTreeBuilder.ChangeStatus.IN_PROGRESS
 
             def on_end_of_node_children():
+                if self._state == SplitTreeBuilder.Version.State.AWAIT_START:
+                    return SplitTreeBuilder.ChangeStatus.IN_PROGRESS
                 self._visit_stack.pop()
                 if len(self._visit_stack) == 0:
                     return SplitTreeBuilder.ChangeStatus.TERMINATED
                 return SplitTreeBuilder.ChangeStatus.IN_PROGRESS
 
             def on_structure_token(token_id):
+                if self._state == SplitTreeBuilder.Version.State.AWAIT_START:
+                    self._state = SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN
+
                 new_node = SplitTreeBuilder.Version.Node(token_id, [], [])
                 if len(self._visit_stack) > 0:
                     self._nodes[self._visit_stack[-1]].children.append(len(self._nodes))
@@ -204,6 +215,8 @@ class SplitTreeBuilder:
                     return TokenHolder.from_tokens([], False)
 
             def on_end_of_node_children():
+                if self._state == SplitTreeBuilder.Version.State.AWAIT_START:
+                    return TokenHolder.from_tokens([], False)
                 if len(self._visit_stack) == 1:
                     return TokenHolder.from_tokens([], False)
                 pred = self._nodes[self._visit_stack[-2]]

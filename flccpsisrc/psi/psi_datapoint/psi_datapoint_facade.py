@@ -188,6 +188,10 @@ class PSIDatapointFacade:
         encode_subtree(tree.root)
         return res
 
+    def remove_end_of_children_suffix(self, ids: List[int]) -> None:
+        while len(ids) > 0 and ids[-1] == SpecialIds.END_OF_NODE_CHILDREN.value:
+            ids.pop()
+
     def get_split_tree_builder(self, init_tree: SplitTree, rollback_prefix_holder: TokenHolder):
         return SplitTreeBuilder(self._structure_decompression, self._placeholders_bpe, rollback_prefix_holder)
 

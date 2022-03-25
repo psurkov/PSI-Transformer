@@ -46,7 +46,7 @@ class PSIConnector(Connector):
         scores = [h.get_normalized_score() for h in all_hyps]
 
         selected_hyps = [
-            (s, h) for s, h in sorted(zip(scores, all_hyps), key=lambda sh: sh[0], reverse=True) if s > 1e-2
+            (s, h) for s, h in sorted(zip(scores, all_hyps), key=lambda sh: sh[0], reverse=True) if s > 0
         ]
         return [
             (h.text, s) for s, h in selected_hyps

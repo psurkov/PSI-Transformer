@@ -133,15 +133,16 @@ class BeamSearch:
         sort_mask = []
         sample_scores = []
         sorted_scores, sorted_inds = torch.sort(torch.nan_to_num(log_probs, nan=float('-inf')), descending=True)
+        sorted_inds = sorted_inds.tolist()
+        sorted_scores = sorted_scores.tolist()
         for ind, score in zip(sorted_inds, sorted_scores):
             if score < -1e35:
                 break
-            ind = ind.item()
             hyp_ind, token_ind = divmod(ind, self._vocab_size)
             new_version = self._split_tree_builder.create_copy(self._split_tree_builder.active_versions_ids[hyp_ind])
             status = self._split_tree_builder.add_token(new_version, token_ind)
             if status == SplitTreeBuilder.ChangeStatus.TERMINATED:
-                self._save_terminated(hyp_ind, token_ind, score.item())
+                self._save_terminated(hyp_ind, token_ind, score)
             else:
                 samples.append(token_ind)
                 active_versions.append(new_version)

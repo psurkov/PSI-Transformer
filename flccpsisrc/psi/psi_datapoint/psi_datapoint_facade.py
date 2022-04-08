@@ -13,7 +13,8 @@ from flccpsisrc.common.token_holder import TokenHolder
 from flccpsisrc.psi.psi_datapoint.tree_structures.special_ids import SpecialIds, SPECIAL_IDS_RESERVED_SIZE
 from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree import SplitTree
 from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree_builder import SplitTreeBuilder
-from flccpsisrc.psi.psi_datapoint.tree_structures.structure_decompression import StructureDecompression
+from flccpsisrc.psi.psi_datapoint.tree_structures.structure_decompression import StructureDecompression, \
+    NodeContentFragment
 
 
 class PSIDatapointFacade:
@@ -173,17 +174,25 @@ class PSIDatapointFacade:
 
         def encode_subtree(cur: SplitTree.Node) -> None:
             res.append(cur.node_type + SPECIAL_IDS_RESERVED_SIZE)
-
-            for index, placeholder_ids in enumerate(cur.placeholders):
-                res.extend(
-                    [placeholder_id + SPECIAL_IDS_RESERVED_SIZE + self._structure_decompression.vocab_size
-                     for placeholder_id in placeholder_ids]
-                )
-                res.append(SpecialIds.END_OF_PLACEHOLDER.value)
-
-            for child in cur.children:
-                encode_subtree(child)
-            res.append(SpecialIds.END_OF_NODE_CHILDREN.value)
+            fragments = self._structure_decompression.get_content_fragments_for(cur.node_type).fragments
+            child_index = 0
+            placeholder_index = 0
+            for fragment in fragments:
+                if fragment.fragment_type == NodeContentFragment.FragmentType.CHILD:
+                    encode_subtree(cur.children[child_index])
+                    res.append(SpecialIds.END_OF_NODE_CHILDREN.value)
+                    child_index += 1
+                elif fragment.fragment_type == NodeContentFragment.FragmentType.PLACEHOLDER:
+                    res.extend(
+                        [placeholder_id + SPECIAL_IDS_RESERVED_SIZE + self._structure_decompression.vocab_size
+                         for placeholder_id in cur.placeholders[placeholder_index]]
+                    )
+                    res.append(SpecialIds.END_OF_PLACEHOLDER.value)
+                    placeholder_index += 1
+            while child_index < len(cur.children):
+                encode_subtree(cur.children[child_index])
+                res.append(SpecialIds.END_OF_NODE_CHILDREN.value)
+                child_index += 1
 
         encode_subtree(tree.root)
         return res

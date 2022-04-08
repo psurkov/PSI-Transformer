@@ -7,7 +7,8 @@ from youtokentome import BPE
 
 from flccpsisrc.common.token_holder import TokenHolder
 from flccpsisrc.psi.psi_datapoint.tree_structures.special_ids import SpecialIds, SPECIAL_IDS_RESERVED_SIZE
-from flccpsisrc.psi.psi_datapoint.tree_structures.structure_decompression import StructureDecompression
+from flccpsisrc.psi.psi_datapoint.tree_structures.structure_decompression import StructureDecompression, \
+    NodeContentFragment
 
 
 class SplitTreeBuilder:
@@ -153,10 +154,14 @@ class SplitTreeBuilder:
                 current = self._nodes[self._visit_stack[-1]]
                 current_content = self._versions_shared.structure_decompression.get_content_fragments_for(
                     current.node_type)
-                if len(current.placeholders) == current_content.placeholders:
+                next_gen_index = len(current.placeholders) + len(current.children)
+                if next_gen_index == current_content.generation_places:
                     self._state = SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN
                 else:
-                    self._nodes[self._visit_stack[-1]].placeholders.append([])
+                    if current_content.generation_place(next_gen_index) == NodeContentFragment.FragmentType.CHILD:
+                        self._state = SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN
+                    else:
+                        self._nodes[self._visit_stack[-1]].placeholders.append([])
                 return SplitTreeBuilder.ChangeStatus.IN_PROGRESS
 
             def on_end_of_node_children():
@@ -178,7 +183,8 @@ class SplitTreeBuilder:
                 self._nodes.append(new_node)
                 new_node_content = self._versions_shared.structure_decompression.get_content_fragments_for(
                     new_node.node_type)
-                if new_node_content.placeholders > 0:
+                if new_node_content.generation_places > 0 and \
+                        new_node_content.generation_place(0) == NodeContentFragment.FragmentType.PLACEHOLDER:
                     self._state = SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN
                     new_node.placeholders.append([])
                 if token_id in self._versions_shared.structure_decompression.can_terminate_if_start_generate:
@@ -205,14 +211,11 @@ class SplitTreeBuilder:
                 current = self._nodes[self._visit_stack[-1]]
                 current_content = self._versions_shared.structure_decompression.get_content_fragments_for(
                     current.node_type)
-                if len(current.placeholders) <= current_content.placeholders_before_first_child:
-                    tokens = current_content.text_after_n_placeholders(len(current.placeholders))
-                    if len(tokens) == 0:
-                        return TokenHolder.from_tokens([], True)
-                    else:
-                        return TokenHolder.from_tokens([""] + tokens, True)
+                tokens = current_content.text_after_n_placeholders(len(current.placeholders))
+                if len(tokens) == 0:
+                    return TokenHolder.from_tokens([], True)
                 else:
-                    return TokenHolder.from_tokens([], False)
+                    return TokenHolder.from_tokens([""] + tokens, True)
 
             def on_end_of_node_children():
                 if self._state == SplitTreeBuilder.Version.State.AWAIT_START:
@@ -222,11 +225,7 @@ class SplitTreeBuilder:
                 pred = self._nodes[self._visit_stack[-2]]
                 pred_content = self._versions_shared.structure_decompression.get_content_fragments_for(pred.node_type)
                 if len(pred.children) <= pred_content.children:
-                    def placeholder_text_by_index(index: int) -> str:
-                        assert index < len(pred.placeholders)
-                        return self._versions_shared.placeholders_bpe.decode(pred.placeholders[index])[0]
-
-                    tokens = pred_content.text_after_n_children(len(pred.children), placeholder_text_by_index)
+                    tokens = pred_content.text_after_n_children(len(pred.children))
                     return TokenHolder.from_tokens(
                         tokens,
                         len(tokens) > 0
@@ -241,13 +240,7 @@ class SplitTreeBuilder:
                 )
 
             def on_placeholder_token(token_id):
-                current = self._nodes[self._visit_stack[-1]]
-                current_content = self._versions_shared.structure_decompression.get_content_fragments_for(
-                    current.node_type)
-                if len(current.placeholders) <= current_content.placeholders_before_first_child:
-                    return TokenHolder.from_tokens(self._versions_shared.placeholders_bpe.decode([token_id]), False)
-                else:
-                    return TokenHolder.from_tokens([], False)
+                return TokenHolder.from_tokens(self._versions_shared.placeholders_bpe.decode([token_id]), False)
 
             return self._on_next_token(
                 token_id,

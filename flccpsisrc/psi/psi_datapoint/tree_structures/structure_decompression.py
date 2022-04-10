@@ -124,7 +124,7 @@ class StructureDecompression:
         self._id_to_content_fragments = {0: NodeContentFragments()}
         with open(type_coder_data) as f:
             coder_data = json.load(f)
-            self._can_terminate_if_start_generate = [coder_data["structureTypenameToType"]["CODE_BLOCK"]["id"]]
+            self._can_terminate_if_start_generate = [coder_data["structureTypenameToType"]["LBRACE"]["id"]]
             for placeholder in coder_data["placeholderTypenameToType"]:
                 placeholder_id = coder_data["placeholderTypenameToType"][placeholder]["id"]
                 self._id_to_content_fragments[placeholder_id] = NodeContentFragments().append_new_placeholder_fragment()

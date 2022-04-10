@@ -1,4 +1,5 @@
 import copy
+import itertools
 from typing import List, Optional
 
 
@@ -37,8 +38,20 @@ class TokenHolder:
         assert self._data[:min_len] == other._data[:min_len]
         self._data = self._data[min_len:]
 
+    @property
     def is_empty(self) -> bool:
         return len(self._data) == 0
+
+    @property
+    def has_at_least_one_full_token(self) -> bool:
+        return None in self._data
+
+    @property
+    def first_full(self) -> Optional[str]:
+        assert not self.is_empty
+        if self._data[0] is None:
+            return None
+        return "".join(itertools.takewhile(lambda x: x is not None, self._data))
 
     def extend(self, other: "TokenHolder") -> None:
         self._data.extend(other._data)

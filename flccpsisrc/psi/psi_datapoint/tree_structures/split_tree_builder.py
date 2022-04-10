@@ -103,13 +103,31 @@ class SplitTreeBuilder:
 
         def get_next_possible_ids(self) -> List[int]:
             possible_by_state = self._get_next_possible_by_state_ids()
-            if self._remaining_prefix_holder.is_empty():
+
+            if self._remaining_prefix_holder.is_empty:
                 return possible_by_state
-            else:
-                return [
-                    token_id for token_id in possible_by_state if
-                    self._remaining_prefix_holder.matches(self.decode_if_add_token_id(token_id))
-                ]
+
+            if self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN:
+                if self._remaining_prefix_holder.has_at_least_one_full_token:
+                    placeholder_token = self._remaining_prefix_holder.first_full
+                    if placeholder_token is None:
+                        eof_matches = self._remaining_prefix_holder.matches(
+                            self.decode_if_add_token_id(SpecialIds.END_OF_PLACEHOLDER.value)
+                        )
+                        if eof_matches:
+                            return SpecialIds.END_OF_PLACEHOLDER.value
+                        else:
+                            return []
+                    else:
+                        placeholder_id = self._versions_shared.placeholders_bpe.encode([placeholder_token])[0][1]
+                        return SPECIAL_IDS_RESERVED_SIZE + \
+                               self._versions_shared.structure_decompression.vocab_size + \
+                               placeholder_id
+
+            return [
+                token_id for token_id in possible_by_state if
+                self._remaining_prefix_holder.matches(self.decode_if_add_token_id(token_id))
+            ]
 
         def _on_next_token(
                 self,

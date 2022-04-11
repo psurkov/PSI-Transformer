@@ -168,18 +168,22 @@ class SplitTreeBuilder:
                 assert False
 
         def add_token(self, token_id: int) -> "SplitTreeBuilder.ChangeStatus":
-            def on_end_of_placeholder():
+            def update_state():
                 current = self._nodes[self._visit_stack[-1]]
                 current_content = self._versions_shared.structure_decompression.get_content_fragments_for(
                     current.node_type)
                 next_gen_index = len(current.placeholders) + len(current.children)
-                if next_gen_index == current_content.generation_places:
+
+                if next_gen_index >= current_content.generation_places \
+                                     or current_content.generation_place(next_gen_index) \
+                                            == NodeContentFragment.FragmentType.CHILD:
                     self._state = SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN
                 else:
-                    if current_content.generation_place(next_gen_index) == NodeContentFragment.FragmentType.CHILD:
-                        self._state = SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN
-                    else:
-                        self._nodes[self._visit_stack[-1]].placeholders.append([])
+                    self._state = SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN
+                    self._nodes[self._visit_stack[-1]].placeholders.append([])
+
+            def on_end_of_placeholder():
+                update_state()
                 return SplitTreeBuilder.ChangeStatus.IN_PROGRESS
 
             def on_end_of_node_children():
@@ -188,6 +192,7 @@ class SplitTreeBuilder:
                 self._visit_stack.pop()
                 if len(self._visit_stack) == 0:
                     return SplitTreeBuilder.ChangeStatus.TERMINATED
+                update_state()
                 return SplitTreeBuilder.ChangeStatus.IN_PROGRESS
 
             def on_structure_token(token_id):
@@ -199,12 +204,7 @@ class SplitTreeBuilder:
                     self._nodes[self._visit_stack[-1]].children.append(len(self._nodes))
                 self._visit_stack.append(len(self._nodes))
                 self._nodes.append(new_node)
-                new_node_content = self._versions_shared.structure_decompression.get_content_fragments_for(
-                    new_node.node_type)
-                if new_node_content.generation_places > 0 and \
-                        new_node_content.generation_place(0) == NodeContentFragment.FragmentType.PLACEHOLDER:
-                    self._state = SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN
-                    new_node.placeholders.append([])
+                update_state()
                 if token_id in self._versions_shared.structure_decompression.can_terminate_if_start_generate:
                     return SplitTreeBuilder.ChangeStatus.TERMINATED
                 else:

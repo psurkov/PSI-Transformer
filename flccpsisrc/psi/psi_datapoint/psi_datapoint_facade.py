@@ -10,6 +10,7 @@ import youtokentome as yttm
 from omegaconf import OmegaConf, DictConfig
 
 from flccpsisrc.common.token_holder import TokenHolder
+from flccpsisrc.psi.psi_datapoint.placeholders.placeholder_bpe import PlaceholderBpe
 from flccpsisrc.psi.psi_datapoint.tree_structures.special_ids import SpecialIds, SPECIAL_IDS_RESERVED_SIZE
 from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree import SplitTree
 from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree_builder import SplitTreeBuilder
@@ -20,17 +21,17 @@ from flccpsisrc.psi.psi_datapoint.tree_structures.structure_decompression import
 class PSIDatapointFacade:
     _stats_filename = "psi/dataset_stats.json"
     _config_filename = "config.yaml"
-    _placeholder_bpe_filename = "placeholders.bpe"
-    _structure_compression_data_filename = "structureTreeCompressionData.json"
-    _type_coder_data_filename = "typeCoderData.json"
+    _placeholder_bpe_folder_name = "placeholders_bpe"
+    _structure_compression_data_filename = "compressionModel.json"
+    _type_coder_data_filename = "typeCoderModel.json"
 
     def __init__(self, config: DictConfig, diff_warning: bool = True):
         self._config = config
 
         self._overwrite = self._config.psi_pretraining.overwrite
         pretrained_path = self._config.save_path
-        self._placeholders_bpe = yttm.BPE(
-            model=os.path.join(pretrained_path, PSIDatapointFacade._placeholder_bpe_filename)
+        self._placeholders_bpe = PlaceholderBpe(
+            os.path.join(pretrained_path, PSIDatapointFacade._placeholder_bpe_folder_name)
         )
         self._structure_decompression = StructureDecompression(
             os.path.join(
@@ -206,4 +207,4 @@ class PSIDatapointFacade:
 
     @property
     def vocab_size(self):
-        return SPECIAL_IDS_RESERVED_SIZE + self._structure_decompression.vocab_size + self._placeholders_bpe.vocab_size()
+        return SPECIAL_IDS_RESERVED_SIZE + self._structure_decompression.vocab_size + self._placeholders_bpe.vocab_size

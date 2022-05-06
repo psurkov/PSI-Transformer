@@ -42,7 +42,8 @@ class SplitTreeBuilder:
         class State(Enum):
             AWAIT_START = 0
             AWAIT_STRUCTURE_TOKEN = 1
-            AWAIT_PLACEHOLDER_TOKEN = 2
+            AWAIT_PLACEHOLDER_FIRST_TOKEN = 2
+            AWAIT_PLACEHOLDER_CONTINUATION_TOKEN = 3
 
         def __init__(
                 self,
@@ -89,7 +90,10 @@ class SplitTreeBuilder:
         def _get_next_possible_by_state_ids(self) -> List[int]:
             if self._state == SplitTreeBuilder.Version.State.AWAIT_START:
                 return self._versions_shared.structure_and_end_of_node_children_tokens
-            elif self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN:
+            elif self._state in [
+                SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN,
+                SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN
+            ]:
                 return self._versions_shared.placeholders_tokens
             elif self._state == SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN:
                 if len(self._visit_stack) > 0:
@@ -106,22 +110,22 @@ class SplitTreeBuilder:
             if self._remaining_prefix_holder.is_empty:
                 return possible_by_state
 
-            if self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN:
-                if self._remaining_prefix_holder.has_at_least_one_full_token:
-                    placeholder_token = self._remaining_prefix_holder.first_full
-                    if placeholder_token is None:
-                        eof_matches = self._remaining_prefix_holder.matches(
-                            self.decode_if_add_token_id(SpecialIds.END_OF_PLACEHOLDER.value)
-                        )
-                        if eof_matches:
-                            return SpecialIds.END_OF_PLACEHOLDER.value
-                        else:
-                            return []
-                    else:
-                        placeholder_id = self._versions_shared.placeholders_bpe.encode([placeholder_token])[0][1]
-                        return SPECIAL_IDS_RESERVED_SIZE + \
-                               self._versions_shared.structure_decompression.vocab_size + \
-                               placeholder_id
+            # if self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN:
+            #     if self._remaining_prefix_holder.has_at_least_one_full_token:
+            #         placeholder_token = self._remaining_prefix_holder.first_full
+            #         if placeholder_token is None:
+            #             eof_matches = self._remaining_prefix_holder.matches(
+            #                 self.decode_if_add_token_id(SpecialIds.END_OF_PLACEHOLDER.value)
+            #             )
+            #             if eof_matches:
+            #                 return SpecialIds.END_OF_PLACEHOLDER.value
+            #             else:
+            #                 return []
+            #         else:
+            #             placeholder_id = self._versions_shared.placeholders_bpe.encode([placeholder_token])[0][1]
+            #             return SPECIAL_IDS_RESERVED_SIZE + \
+            #                    self._versions_shared.structure_decompression.vocab_size + \
+            #                    placeholder_id
 
             return [
                 token_id for token_id in possible_by_state if
@@ -137,7 +141,10 @@ class SplitTreeBuilder:
                 on_placeholder_token: Callable
         ):
             if token_id == SpecialIds.END_OF_PLACEHOLDER.value:
-                assert self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN
+                assert self._state in [
+                    SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN,
+                    SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN
+                ]
                 current = self._nodes[self._visit_stack[-1]]
                 current_content = self._versions_shared.structure_decompression.get_content_fragments_for(
                     current.node_type)
@@ -160,7 +167,10 @@ class SplitTreeBuilder:
             elif SPECIAL_IDS_RESERVED_SIZE + self._versions_shared.structure_decompression.vocab_size <= token_id \
                     < SPECIAL_IDS_RESERVED_SIZE + self._versions_shared.structure_decompression.vocab_size \
                     + self._versions_shared.placeholders_bpe.vocab_size:
-                assert self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN
+                assert self._state in [
+                    SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN,
+                    SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN
+                ]
                 return on_placeholder_token(
                     token_id - SPECIAL_IDS_RESERVED_SIZE - self._versions_shared.structure_decompression.vocab_size)
             else:
@@ -178,7 +188,7 @@ class SplitTreeBuilder:
                         == NodeContentFragment.FragmentType.CHILD:
                     self._state = SplitTreeBuilder.Version.State.AWAIT_STRUCTURE_TOKEN
                 else:
-                    self._state = SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN
+                    self._state = SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN
                     self._nodes[self._visit_stack[-1]].placeholders.append([])
 
             def on_end_of_placeholder():
@@ -211,6 +221,7 @@ class SplitTreeBuilder:
 
             def on_placeholder_token(token_id):
                 self._nodes[self._visit_stack[-1]].placeholders[-1].append(token_id)
+                self._state = SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN
                 return SplitTreeBuilder.ChangeStatus.IN_PROGRESS
 
             self._remaining_prefix_holder.remove_prefix(self.decode_if_add_token_id(token_id))
@@ -230,34 +241,47 @@ class SplitTreeBuilder:
                     current.node_type)
                 tokens = current_content.text_after_n_placeholders(len(current.placeholders))
                 if len(tokens) == 0:
-                    return TokenHolder.from_tokens([], True)
+                    res = TokenHolder.empty().finish_last_token()
                 else:
-                    return TokenHolder.from_tokens([""] + tokens, True)
+                    res = TokenHolder.empty().finish_last_token().add_tokens(
+                        [TokenHolder.Token("STRUCTURE", text) for text in tokens]
+                    ).finish_last_token()
+                return res
 
             def on_end_of_node_children():
                 if self._state == SplitTreeBuilder.Version.State.AWAIT_START:
-                    return TokenHolder.from_tokens([], False)
+                    return TokenHolder.empty()
                 if len(self._visit_stack) == 1:
-                    return TokenHolder.from_tokens([], False)
+                    return TokenHolder.empty()
                 pred = self._nodes[self._visit_stack[-2]]
                 pred_content = self._versions_shared.structure_decompression.get_content_fragments_for(pred.node_type)
                 if len(pred.children) <= pred_content.children:
                     tokens = pred_content.text_after_n_children(len(pred.children))
-                    return TokenHolder.from_tokens(
-                        tokens,
-                        len(tokens) > 0
+                    res = TokenHolder.empty().add_tokens(
+                        [TokenHolder.Token("STRUCTURE", text) for text in tokens]
                     )
-                return TokenHolder.from_tokens([], False)
+                    if len(tokens) > 0:
+                        res.finish_last_token()
+                    return res
+                return TokenHolder.empty()
 
             def on_structure_token(token_id):
                 tokens = self._versions_shared.structure_decompression.get_content_fragments_for(token_id).text_prefix()
-                return TokenHolder.from_tokens(
-                    tokens,
-                    len(tokens) > 0
+                res = TokenHolder.empty().add_tokens(
+                    [TokenHolder.Token("STRUCTURE", text) for text in tokens]
                 )
+                if len(tokens) > 0:
+                    res.finish_last_token()
+                return res
 
             def on_placeholder_token(token_id):
-                return TokenHolder.from_tokens([self._versions_shared.placeholders_bpe.decode(token_id)], False)
+                token = self._versions_shared.placeholders_bpe.decode(token_id)
+                res = TokenHolder.empty().add_part_of_token_text(
+                    token.token_text
+                )
+                if self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN:
+                    res.add_token_type(token.token_type)
+                return res
 
             return self._on_next_token(
                 token_id,
@@ -314,7 +338,7 @@ class SplitTreeBuilder:
             self._rollback_prefix_holder,
             self._versions_shared
         )
-        suggestion = TokenHolder.from_tokens([], False)
+        suggestion = TokenHolder.empty()
         for token_id in ids:
             suggestion.extend(new_version.decode_if_add_token_id(token_id))
             new_version.add_token(token_id)

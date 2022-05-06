@@ -38,15 +38,15 @@ class PSIGPT2Wrapper(ModelWrapper):
             scores, self._mems = self._model(context, use_cache=True, return_dict=False)
             log_probs = F.log_softmax(scores[:, -1, :], dim=1)
 
-        if len(rollback_prefix) > 0 and rollback_prefix[-1] == "":
-            token_holder = TokenHolder.from_tokens(rollback_prefix[:-1], True)
-        else:
-            token_holder = TokenHolder.from_tokens(rollback_prefix, False)
+        token_holder = TokenHolder.empty().add_tokens(self._parse_rollback_prefix(rollback_prefix))
 
         return log_probs, self._psi_facade.get_split_tree_builder(
             split_tree,
             token_holder
         )
+
+    def _parse_rollback_prefix(self, prefix: List[str]) -> List[TokenHolder.Token]:
+        return [TokenHolder.Token(s.split(":", maxsplit=2)[0], s.split(":", maxsplit=2)[1]) for s in prefix]
 
     def sort_state(self, sort_mask: torch.Tensor) -> None:
         self._mems = tuple(tuple(k[sort_mask].contiguous() for k in mem) for mem in self._mems)

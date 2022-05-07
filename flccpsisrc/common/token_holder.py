@@ -87,6 +87,11 @@ class TokenHolder:
             return None
         return "".join(itertools.takewhile(lambda x: x is not None, self._data_text))
 
+    @property
+    def first_type(self) -> Optional[str]:
+        assert len(self._data_types) > 0
+        return self._data_types[0]
+
     def add_part_of_token_text(self, text: str) -> "TokenHolder":
         self._data_text.extend(text)
         return self

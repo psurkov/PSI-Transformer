@@ -1,7 +1,7 @@
 import copy
 import dataclasses
 from enum import Enum
-from typing import List, Callable
+from typing import List, Callable, Optional
 
 from flccpsisrc.common.token_holder import TokenHolder
 from flccpsisrc.psi.psi_datapoint.placeholders.placeholder_bpe import PlaceholderBpe
@@ -52,12 +52,14 @@ class SplitTreeBuilder:
                 state,
                 remaining_prefix_holder: TokenHolder,
                 versions_shared: "SplitTreeBuilder.VersionsShared",
+                last_placeholder_type: Optional[str]
         ):
             self._nodes = nodes
             self._visit_stack = visit_stack
             self._state = state
             self._remaining_prefix_holder = remaining_prefix_holder
             self._versions_shared = versions_shared
+            self._last_placeholder_type = last_placeholder_type
 
         @staticmethod
         def empty_version(
@@ -69,7 +71,8 @@ class SplitTreeBuilder:
                 [],
                 SplitTreeBuilder.Version.State.AWAIT_START,
                 rollback_prefix_holder.copy(),
-                versions_shared
+                versions_shared,
+                None
             )
 
         @dataclasses.dataclass
@@ -84,7 +87,8 @@ class SplitTreeBuilder:
                 copy.deepcopy(self._visit_stack),
                 self._state,
                 self._remaining_prefix_holder.copy(),
-                self._versions_shared
+                self._versions_shared,
+                self._last_placeholder_type
             )
 
         def _get_next_possible_by_state_ids(self) -> List[int]:
@@ -110,22 +114,38 @@ class SplitTreeBuilder:
             if self._remaining_prefix_holder.is_empty:
                 return possible_by_state
 
-            # if self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_TOKEN:
-            #     if self._remaining_prefix_holder.has_at_least_one_full_token:
-            #         placeholder_token = self._remaining_prefix_holder.first_full
-            #         if placeholder_token is None:
-            #             eof_matches = self._remaining_prefix_holder.matches(
-            #                 self.decode_if_add_token_id(SpecialIds.END_OF_PLACEHOLDER.value)
-            #             )
-            #             if eof_matches:
-            #                 return SpecialIds.END_OF_PLACEHOLDER.value
-            #             else:
-            #                 return []
-            #         else:
-            #             placeholder_id = self._versions_shared.placeholders_bpe.encode([placeholder_token])[0][1]
-            #             return SPECIAL_IDS_RESERVED_SIZE + \
-            #                    self._versions_shared.structure_decompression.vocab_size + \
-            #                    placeholder_id
+            if self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN:
+                if self._remaining_prefix_holder.has_at_least_one_full_token:
+                    token_type = self._remaining_prefix_holder.first_type
+                    if token_type in self._versions_shared.placeholders_bpe.types:
+                        placeholder_text = self._remaining_prefix_holder.first_full
+                        assert placeholder_text is not None
+                        placeholder_id = self._versions_shared.placeholders_bpe.encode(
+                            TokenHolder.Token(token_type, placeholder_text)
+                        )[0]
+                        return [SPECIAL_IDS_RESERVED_SIZE + \
+                                self._versions_shared.structure_decompression.vocab_size + \
+                                placeholder_id]
+                    else:
+                        return []
+            elif self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN:
+                if self._remaining_prefix_holder.has_at_least_one_full_token:
+                    placeholder_text = self._remaining_prefix_holder.first_full
+                    if placeholder_text is None:
+                        eof_matches = self._remaining_prefix_holder.matches(
+                            self.decode_if_add_token_id(SpecialIds.END_OF_PLACEHOLDER.value)
+                        )
+                        if eof_matches:
+                            return SpecialIds.END_OF_PLACEHOLDER.value
+                        else:
+                            return []
+                    else:
+                        placeholder_id = self._versions_shared.placeholders_bpe.encode(
+                            TokenHolder.Token(self._last_placeholder_type, placeholder_text)
+                        )[0]
+                        return [SPECIAL_IDS_RESERVED_SIZE + \
+                                self._versions_shared.structure_decompression.vocab_size + \
+                                placeholder_id]
 
             return [
                 token_id for token_id in possible_by_state if
@@ -221,7 +241,9 @@ class SplitTreeBuilder:
 
             def on_placeholder_token(token_id):
                 self._nodes[self._visit_stack[-1]].placeholders[-1].append(token_id)
-                self._state = SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN
+                if self._state == SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN:
+                    self._last_placeholder_type = self._versions_shared.placeholders_bpe.decode(token_id).token_type
+                    self._state = SplitTreeBuilder.Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN
                 return SplitTreeBuilder.ChangeStatus.IN_PROGRESS
 
             self._remaining_prefix_holder.remove_prefix(self.decode_if_add_token_id(token_id))

@@ -126,7 +126,8 @@ class BeamSearch:
             self._row_mask[:] = 1
             self._row_mask[possible_ids] = 0
             log_probs[row_id, self._row_mask] = float("-inf")
-        return torch.nn.functional.log_softmax(log_probs, dim=-1)
+        return log_probs
+        # return torch.nn.functional.log_softmax(log_probs, dim=-1)
 
     def _step(self, log_probs: torch.Tensor) -> Optional[torch.Tensor]:
         log_probs.add_(self._scores.unsqueeze(1))

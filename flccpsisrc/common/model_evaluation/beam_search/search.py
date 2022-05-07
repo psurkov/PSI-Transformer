@@ -5,6 +5,7 @@ from typing import List, Optional
 import torch
 
 from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree_builder import SplitTreeBuilder
+from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree_version import ChangeStatus
 
 
 @dataclass
@@ -146,7 +147,7 @@ class BeamSearch:
             hyp_ind, token_ind = divmod(ind, self._vocab_size)
             new_version = self._split_tree_builder.create_copy(self._split_tree_builder.active_versions_ids[hyp_ind])
             status = self._split_tree_builder.add_token(new_version, token_ind)
-            if status == SplitTreeBuilder.ChangeStatus.TERMINATED:
+            if status == ChangeStatus.TERMINATED:
                 self._save_terminated(hyp_ind, token_ind, score)
             else:
                 samples.append(token_ind)

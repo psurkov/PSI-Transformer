@@ -21,7 +21,11 @@ class Hypothesis:
 
     @property
     def text(self) -> str:
-        return self._split_tree_builder.decode_generated_ids(self.ids)
+        return self._split_tree_builder.collect_full_token_holder(self.ids).str_text()
+
+    @property
+    def types(self) -> str:
+        return self._split_tree_builder.collect_full_token_holder(self.ids).str_types()
 
 
 class BeamSearch:

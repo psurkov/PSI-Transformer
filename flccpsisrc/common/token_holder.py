@@ -31,9 +31,14 @@ class TokenHolder:
     def copy(self) -> "TokenHolder":
         return TokenHolder(copy.deepcopy(self._data_text), copy.deepcopy(self._data_types))
 
+    def str_text(self) -> str:
+        return "".join(map(lambda x: x if x is not None else " ", self._data_text))
+
+    def str_types(self) -> str:
+        return "(" + ", ".join(self._data_types) + ")"
+
     def __str__(self) -> str:
-        return "".join(map(lambda x: x if x is not None else " ", self._data_text)) + \
-               "(" + ", ".join(self._data_types) + ")"
+        return self.str_text() + self.str_types()
 
     def _text_matches(self, other: "TokenHolder") -> bool:
         text_min_len = min(len(self._data_text), len(other._data_text))

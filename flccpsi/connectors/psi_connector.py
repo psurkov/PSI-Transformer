@@ -35,7 +35,8 @@ class PSIConnector(Connector):
 
     def get_suggestions(self, prime: str, filename: str, language: str, settings: GenerationSettings):
         split_tree = self._facade.json_dict_to_split_tree(json.loads(prime))
-        print(split_tree)
+        print("tree=" + split_tree.__str__())
+        print("prefix=" + settings.rollback_prefix.__str__())
 
         sequence_generator = SequenceGenerator(self._model_wrapper, settings.num_iterations, settings.beam_size)
         terminated_hyps, current_hyps = sequence_generator.search_sequence(
@@ -48,6 +49,11 @@ class PSIConnector(Connector):
         selected_hyps = [
             (s, h) for s, h in sorted(zip(scores, all_hyps), key=lambda sh: sh[0], reverse=True) if s > 0
         ]
+        for s, h in selected_hyps:
+            print("Suggestion " + s.__str__() + ":")
+            print(h.text)
+            print(h.types)
+            print()
         return [
             (h.text, s) for s, h in selected_hyps
         ]

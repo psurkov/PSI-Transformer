@@ -333,7 +333,7 @@ class SplitTreeBuilder:
         assert version_id in self._versions
         return self._versions[version_id].decode_if_add_token_id(token_id)
 
-    def decode_generated_ids(self, ids: List[int]) -> str:
+    def collect_full_token_holder(self, ids: List[int]) -> TokenHolder:
         new_version = SplitTreeBuilder.Version.empty_version(
             self._rollback_prefix_holder,
             self._versions_shared
@@ -343,4 +343,4 @@ class SplitTreeBuilder:
             suggestion.extend(new_version.decode_if_add_token_id(token_id))
             new_version.add_token(token_id)
         suggestion.remove_prefix(self._rollback_prefix_holder)
-        return suggestion.__str__()
+        return suggestion

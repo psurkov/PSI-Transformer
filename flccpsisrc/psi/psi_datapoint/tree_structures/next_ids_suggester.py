@@ -5,7 +5,8 @@ from flccpsisrc.common.token_holder import TokenHolder
 from flccpsisrc.psi.psi_datapoint.placeholders.placeholder_bpe import PlaceholderBpe
 from flccpsisrc.psi.psi_datapoint.tree_structures.special_ids import SPECIAL_IDS_RESERVED_SIZE, SpecialIds
 from flccpsisrc.psi.psi_datapoint.tree_structures.split_tree_version import Version
-from flccpsisrc.psi.psi_datapoint.tree_structures.structure_decompression import StructureDecompression
+from flccpsisrc.psi.psi_datapoint.tree_structures.structure_decompression import StructureDecompression, \
+    NodeContentFragment
 
 
 class NextIdsSuggester:
@@ -35,7 +36,6 @@ class NextIdsSuggester:
 
         placeholder_text = version.remaining_prefix_holder.first_full
         if version.state == Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN:
-            # assert version.remaining_prefix_holder.first_type == version.current_placeholder_type todo
             if version.remaining_prefix_holder.first_type != version.current_placeholder_type:
                 return NextIdsSuggester.PossibleIdSuggestion.empty_stop()
         if placeholder_text is None:
@@ -53,7 +53,28 @@ class NextIdsSuggester:
     def _structure_tokens_matching_prefix(self, version: Version) -> PossibleIdSuggestion:
         if version.state not in (Version.State.AWAIT_START, Version.State.AWAIT_STRUCTURE_TOKEN):
             return NextIdsSuggester.PossibleIdSuggestion.empty_continue()
-        return NextIdsSuggester.PossibleIdSuggestion.empty_continue()  # todo
+        if version.remaining_prefix_holder.is_empty:
+            return NextIdsSuggester.PossibleIdSuggestion.empty_continue()
+        structure_matches = []
+        for token_id in self._structure_ids:
+            content = self._structure_decompression.get_content_fragments_for(token_id - SPECIAL_IDS_RESERVED_SIZE)
+            expected_tokens = zip(version.remaining_prefix_holder.types, version.remaining_prefix_holder.full_tokens)
+            ok = True
+            for actual, expected in zip(content.fragments, expected_tokens):
+                if actual.fragment_type == NodeContentFragment.FragmentType.CHILD:
+                    break
+                if actual.fragment_type == NodeContentFragment.FragmentType.TEXT:
+                    if expected[0] != "STRUCTURE" or expected[1] != actual.self_text:
+                        ok = False
+                        break
+                if actual.fragment_type == NodeContentFragment.FragmentType.PLACEHOLDER:
+                    if expected[0] != actual.placeholder_type:
+                        ok = False
+                        break
+            if ok:
+                structure_matches.append(token_id)
+
+        return NextIdsSuggester.PossibleIdSuggestion([], structure_matches, True)
 
     def _all_placeholders(self, version: Version) -> PossibleIdSuggestion:
         if version.state in [

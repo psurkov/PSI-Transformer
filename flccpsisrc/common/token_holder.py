@@ -73,8 +73,16 @@ class TokenHolder:
         return len(self._data_text) == 0 and len(self._data_types) == 0
 
     @property
-    def full_tokens(self) -> int:
-        return len([t for t in self._data_text if t is None])
+    def full_tokens(self) -> List[str]:
+        res = []
+        next_str = ""
+        for x in self._data_text:
+            if x is None:
+                res.append(next_str)
+                next_str = ""
+            else:
+                next_str += x
+        return res
 
     @property
     def has_at_least_one_full_token(self) -> bool:
@@ -88,7 +96,11 @@ class TokenHolder:
         return "".join(itertools.takewhile(lambda x: x is not None, self._data_text))
 
     @property
-    def first_type(self) -> Optional[str]:
+    def types(self) -> List[str]:
+        return self._data_types
+
+    @property
+    def first_type(self) -> str:
         assert len(self._data_types) > 0
         return self._data_types[0]
 

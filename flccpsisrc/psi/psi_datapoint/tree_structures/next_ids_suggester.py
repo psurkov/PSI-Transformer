@@ -25,35 +25,21 @@ class NextIdsSuggester:
 
     _pipeline: List[Callable[[Version], PossibleIdSuggestion]]
 
-    def _placeholder_first_token_with_at_least_one_full_token(self, version: Version) -> PossibleIdSuggestion:
-        if version.state != Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN:
-            return NextIdsSuggester.PossibleIdSuggestion.empty_continue()
-        if not version.remaining_prefix_holder.has_at_least_one_full_token:
-            return NextIdsSuggester.PossibleIdSuggestion.empty_continue()
-        token_type = version.remaining_prefix_holder.first_type
-        # todo assert
-        if token_type in self._placeholders_bpe.types:
-            placeholder_text = version.remaining_prefix_holder.first_full
-            assert placeholder_text is not None
-            placeholder_id = self._placeholders_bpe.encode(
-                TokenHolder.Token(token_type, placeholder_text)
-            )[0]
-            return NextIdsSuggester.PossibleIdSuggestion(
-                [SPECIAL_IDS_RESERVED_SIZE + self._structure_decompression.vocab_size + placeholder_id],
-                [],
-                True
-            )
-        else:
-            return NextIdsSuggester.PossibleIdSuggestion.empty_stop()
-
-    def _placeholder_continuation_token_with_at_least_one_full_token(self, version: Version) -> PossibleIdSuggestion:
-        if version.state != Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN:
+    def _placeholder_with_at_least_one_full_token(self, version: Version) -> PossibleIdSuggestion:
+        if version.state not in [
+            Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN, Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN
+        ]:
             return NextIdsSuggester.PossibleIdSuggestion.empty_continue()
         if not version.remaining_prefix_holder.has_at_least_one_full_token:
             return NextIdsSuggester.PossibleIdSuggestion.empty_continue()
 
         placeholder_text = version.remaining_prefix_holder.first_full
+        if version.state == Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN:
+            # assert version.remaining_prefix_holder.first_type == version.current_placeholder_type todo
+            if version.remaining_prefix_holder.first_type != version.current_placeholder_type:
+                return NextIdsSuggester.PossibleIdSuggestion.empty_stop()
         if placeholder_text is None:
+            assert version.state == Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN
             return NextIdsSuggester.PossibleIdSuggestion([], [SpecialIds.END_OF_PLACEHOLDER.value], True)
         else:
             placeholder_id = self._placeholders_bpe.encode(
@@ -70,13 +56,9 @@ class NextIdsSuggester:
         return NextIdsSuggester.PossibleIdSuggestion.empty_continue()  # todo
 
     def _all_placeholders(self, version: Version) -> PossibleIdSuggestion:
-        if version.state == Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN:
-            return NextIdsSuggester.PossibleIdSuggestion(
-                [],
-                self._all_placeholder_ids,
-                False
-            )
-        elif version.state == Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN:
+        if version.state in [
+            Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN, Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN
+        ]:
             return NextIdsSuggester.PossibleIdSuggestion(
                 [],
                 self._placeholder_ids_of_type[version.current_placeholder_type],
@@ -125,8 +107,7 @@ class NextIdsSuggester:
         self._all_placeholder_ids = [i + SPECIAL_IDS_RESERVED_SIZE + self._structure_decompression.vocab_size
                                      for i in range(self._placeholders_bpe.vocab_size)]
         self._pipeline = [
-            self._placeholder_first_token_with_at_least_one_full_token,
-            self._placeholder_continuation_token_with_at_least_one_full_token,
+            self._placeholder_with_at_least_one_full_token,
             self._eop,
             self._eoc,
             self._structure_tokens_matching_prefix,

@@ -57,7 +57,7 @@ class NextIdsSuggester:
             return NextIdsSuggester.PossibleIdSuggestion([], [SpecialIds.END_OF_PLACEHOLDER.value], True)
         else:
             placeholder_id = self._placeholders_bpe.encode(
-                TokenHolder.Token(version.last_placeholder_type, placeholder_text)
+                TokenHolder.Token(version.current_placeholder_type, placeholder_text)
             )[0]
             token_id = SPECIAL_IDS_RESERVED_SIZE + \
                        self._structure_decompression.vocab_size + \
@@ -79,7 +79,7 @@ class NextIdsSuggester:
         elif version.state == Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN:
             return NextIdsSuggester.PossibleIdSuggestion(
                 [],
-                self._placeholder_ids_of_type[version.last_placeholder_type],
+                self._placeholder_ids_of_type[version.current_placeholder_type],
                 False
             )
         else:

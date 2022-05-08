@@ -9,9 +9,10 @@ class NodeContentFragment:
         PLACEHOLDER = 1
         CHILD = 2
 
-    def __init__(self, fragment_type, self_text: Optional[str]):
+    def __init__(self, fragment_type, self_text: Optional[str], placeholder_type: Optional[str]):
         self._fragment_type = fragment_type
         self._self_text = self_text
+        self._placeholder_type = placeholder_type
 
     @property
     def fragment_type(self) -> FragmentType:
@@ -20,6 +21,10 @@ class NodeContentFragment:
     @property
     def self_text(self) -> str:
         return self._self_text
+
+    @property
+    def placeholder_type(self) -> str:
+        return self._placeholder_type
 
     def __str__(self) -> str:
         if self.fragment_type == NodeContentFragment.FragmentType.TEXT:
@@ -30,8 +35,7 @@ class NodeContentFragment:
 
 
 class NodeContentFragments:
-    _placeholder_fragment = NodeContentFragment(NodeContentFragment.FragmentType.PLACEHOLDER, None)
-    _child_fragment = NodeContentFragment(NodeContentFragment.FragmentType.CHILD, None)
+    _child_fragment = NodeContentFragment(NodeContentFragment.FragmentType.CHILD, None, None)
 
     def __init__(self):
         self._fragments = []
@@ -52,10 +56,10 @@ class NodeContentFragments:
     def generation_places(self) -> int:
         return self.placeholders + self.children
 
-    def generation_place(self, ind: int) -> NodeContentFragment.FragmentType:
+    def generation_place(self, ind: int) -> NodeContentFragment:
         assert ind < self.generation_places
         return [f for f in self.fragments
-                if f.fragment_type != NodeContentFragment.FragmentType.TEXT][ind].fragment_type
+                if f.fragment_type != NodeContentFragment.FragmentType.TEXT][ind]
 
     def text_prefix(self) -> List[str]:
         res = []
@@ -94,11 +98,12 @@ class NodeContentFragments:
         return res
 
     def append_new_text_fragment(self, text: str) -> "NodeContentFragments":
-        self._fragments.append(NodeContentFragment(NodeContentFragment.FragmentType.TEXT, text))
+        self._fragments.append(NodeContentFragment(NodeContentFragment.FragmentType.TEXT, text, None))
         return self
 
-    def append_new_placeholder_fragment(self) -> "NodeContentFragments":
-        self._fragments.append(NodeContentFragments._placeholder_fragment)
+    def append_new_placeholder_fragment(self, placeholder_type) -> "NodeContentFragments":
+        fragment = NodeContentFragment(NodeContentFragment.FragmentType.PLACEHOLDER, None, placeholder_type)
+        self._fragments.append(fragment)
         return self
 
     def append_new_child_fragment(self) -> "NodeContentFragments":
@@ -127,7 +132,8 @@ class StructureDecompression:
             self._can_terminate_if_start_generate = [coder_data["structureTypenameToType"]["LBRACE"]["id"]]
             for placeholder in coder_data["placeholderTypenameToType"]:
                 placeholder_id = coder_data["placeholderTypenameToType"][placeholder]["id"]
-                self._id_to_content_fragments[placeholder_id] = NodeContentFragments().append_new_placeholder_fragment()
+                self._id_to_content_fragments[placeholder_id] = NodeContentFragments() \
+                    .append_new_placeholder_fragment(placeholder)
             for structure in coder_data["structureTypenameToType"]:
                 structure_id = coder_data["structureTypenameToType"][structure]["id"]
                 structure_text = coder_data["structureTypenameToType"][structure]["text"]

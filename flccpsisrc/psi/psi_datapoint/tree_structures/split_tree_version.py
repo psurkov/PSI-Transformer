@@ -24,20 +24,6 @@ class VersionsShared:
         self.structure_decompression = structure_decompression
         self.placeholders_bpe = placeholders_bpe
 
-        self.placeholders_tokens = list(
-            SPECIAL_IDS_RESERVED_SIZE + structure_decompression.vocab_size + token_id
-            for token_id in range(placeholders_bpe.vocab_size)
-        )
-        self.placeholders_tokens.append(SpecialIds.END_OF_PLACEHOLDER.value)
-
-        self.structure_tokens = list(
-            SPECIAL_IDS_RESERVED_SIZE + token_id
-            for token_id in range(structure_decompression.vocab_size)
-        )
-
-        self.structure_and_end_of_node_children_tokens = copy.deepcopy(self.structure_tokens)
-        self.structure_and_end_of_node_children_tokens.append(SpecialIds.END_OF_NODE_CHILDREN.value)
-
 
 class Version:
     class State(Enum):
@@ -53,14 +39,14 @@ class Version:
             state: State,
             remaining_prefix_holder: TokenHolder,
             versions_shared: "VersionsShared",
-            last_placeholder_type: Optional[str]
+            current_placeholder_type: Optional[str]
     ):
         self._nodes = nodes
         self._visit_stack = visit_stack
         self._state = state
         self._remaining_prefix_holder = remaining_prefix_holder
         self._versions_shared = versions_shared
-        self._last_placeholder_type = last_placeholder_type
+        self._current_placeholder_type = current_placeholder_type
 
     @staticmethod
     def empty_version(
@@ -73,7 +59,7 @@ class Version:
             Version.State.AWAIT_START,
             rollback_prefix_holder.copy(),
             versions_shared,
-            None
+            None,
         )
 
     @dataclasses.dataclass
@@ -91,8 +77,8 @@ class Version:
         return self._state
 
     @property
-    def last_placeholder_type(self) -> str:
-        return self._last_placeholder_type
+    def current_placeholder_type(self) -> Optional[str]:
+        return self._current_placeholder_type
 
     def copy(self) -> "Version":
         return Version(
@@ -101,7 +87,7 @@ class Version:
             self._state,
             self._remaining_prefix_holder.copy(),
             self._versions_shared,
-            self._last_placeholder_type
+            self._current_placeholder_type
         )
 
     def can_eof(self) -> bool:
@@ -170,11 +156,13 @@ class Version:
             next_gen_index = len(current.placeholders) + len(current.children)
 
             if next_gen_index >= current_content.generation_places \
-                    or current_content.generation_place(next_gen_index) \
+                    or current_content.generation_place(next_gen_index).fragment_type \
                     == NodeContentFragment.FragmentType.CHILD:
                 self._state = Version.State.AWAIT_STRUCTURE_TOKEN
+                self._current_placeholder_type = None
             else:
                 self._state = Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN
+                self._current_placeholder_type = current_content.generation_place(next_gen_index).placeholder_type
                 self._nodes[self._visit_stack[-1]].placeholders.append([])
 
         def on_end_of_placeholder():
@@ -207,9 +195,7 @@ class Version:
 
         def on_placeholder_token(token_id):
             self._nodes[self._visit_stack[-1]].placeholders[-1].append(token_id)
-            if self._state == Version.State.AWAIT_PLACEHOLDER_FIRST_TOKEN:
-                self._last_placeholder_type = self._versions_shared.placeholders_bpe.decode(token_id).token_type
-                self._state = Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN
+            self._state = Version.State.AWAIT_PLACEHOLDER_CONTINUATION_TOKEN
             return ChangeStatus.IN_PROGRESS
 
         self._remaining_prefix_holder.remove_prefix(self.decode_if_add_token_id(token_id))
